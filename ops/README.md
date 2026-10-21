@@ -72,12 +72,14 @@ Store these values as encrypted **Actions secrets** in your own repository:
 | `IETT_MONITOR_HOST` | VM address |
 | `IETT_MONITOR_HOST_KEY` | Matching trusted `known_hosts` entries |
 | `IETT_MONITOR_SSH_KEY` | Dedicated restricted private key |
-| `IETT_MONITOR_BOT_TOKEN` | Bot token used only for operator notifications |
+| `IETT_MONITOR_BOT_TOKEN` | Telegram sender token; hosted deployment uses `@iett_notification_bot` |
 | `IETT_MONITOR_CHAT_ID` | Operator's private Telegram chat ID |
 
-The operator must have pressed Start in that notification bot. The bot service's main token and
-database/storage credentials are not needed by GitHub. Someone able to change trusted workflows can
-use their secrets, so review contributions before merging and restrict repository write access.
+The operator must have pressed Start in that bot. The hosted deployment uses its main
+`@iett_notification_bot` token for monitoring messages too; another deployment can choose a separate
+operator bot. Database/storage credentials are not needed by GitHub. Someone able to change trusted
+workflows can control the configured Telegram bot through its secret, so review contributions before
+merging and restrict repository write access.
 The monitor runs only on the default branch's schedule or manual dispatch, never on pull requests.
 
 The workflow has repository-content write permission solely to retain incident state in the
