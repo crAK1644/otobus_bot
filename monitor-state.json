@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "checks": {
+    "bot": {
+      "since": null,
+      "alerted": false
+    },
+    "backup": {
+      "since": null,
+      "alerted": false
+    }
+  },
+  "heartbeat": 1792593748
+}
