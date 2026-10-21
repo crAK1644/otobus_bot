@@ -17,6 +17,9 @@ there are none. Existing notices are delivered according to your notification ho
 Use `/settings` to change language or notification hours. Use `/status` to check announcements for
 all your lines now, `/status 59RH` for one followed line, or its **Check now** button to read the full
 announcements, even while automatic alerts are paused or outside your notification hours.
+Share a line with a one-tap link: `https://t.me/iett_notification_bot?start=59RH` opens the bot and
+follows that line as soon as the person presses **Start** (the bot shows each line's link after you
+follow it). Line codes with Turkish letters use an encoded form of the same link.
 The hosted bot runs on an always-on server; subscribers do not need to install or run this code.
 The former `@cmp_visitor_bot` points visitors to the new bot. Existing followers should press **Start**
 in the new bot; their saved lines and notification hours remain in the same database.
@@ -74,6 +77,7 @@ lines; monitor available disk space and keep off-server backups.
 | `/status` | Refresh and show announcements for all followed lines, with last successful check |
 | `/status 59RH` | Refresh and show announcements for one followed line |
 | `/pause` / `/resume` | Pause or resume delivery; monitoring continues |
+| `/privacy` | Show what data is stored, why, and for how long |
 | `/delete_me` | Confirm deletion of personal data |
 | `/cancel` | Cancel the current interaction |
 | `/help` | Show command help |

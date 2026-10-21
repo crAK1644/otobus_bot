@@ -20,6 +20,28 @@ from iett_bot.worker import Heartbeats, Monitor
 
 log = logging.getLogger(__name__)
 
+# (command, English description, Turkish description) for the Telegram command menu.
+COMMANDS = [
+    ("start", "Start", "Başla"),
+    ("lines", "Your lines", "Hatlarınız"),
+    ("settings", "Settings", "Ayarlar"),
+    ("status", "Current notices", "Güncel duyurular"),
+    ("pause", "Pause alerts", "Bildirimleri duraklat"),
+    ("resume", "Resume alerts", "Bildirimleri aç"),
+    ("privacy", "Privacy", "Gizlilik"),
+    ("delete_me", "Delete personal data", "Kişisel verileri sil"),
+    ("cancel", "Cancel", "Vazgeç"),
+    ("help", "Help", "Yardım"),
+]
+
+
+async def publish_commands(bot: Bot) -> None:
+    for index, language in ((1, "en"), (2, "tr")):
+        await bot.set_my_commands(
+            [BotCommand(command=row[0], description=row[index]) for row in COMMANDS],
+            language_code=language,
+        )
+
 
 async def runtime(settings: Settings) -> None:
     settings.require_runtime()
@@ -46,49 +68,7 @@ async def runtime(settings: Settings) -> None:
                     await runner.setup()
                     await web.TCPSite(runner, settings.health_host, settings.health_port).start()
                     await bot.delete_webhook(drop_pending_updates=False)
-                    commands = {
-                        "en": [
-                            "Start",
-                            "Your lines",
-                            "Settings",
-                            "Current notices",
-                            "Pause alerts",
-                            "Resume alerts",
-                            "Delete personal data",
-                            "Cancel",
-                            "Help",
-                        ],
-                        "tr": [
-                            "Başla",
-                            "Hatlarınız",
-                            "Ayarlar",
-                            "Güncel duyurular",
-                            "Bildirimleri duraklat",
-                            "Bildirimleri aç",
-                            "Kişisel verileri sil",
-                            "Vazgeç",
-                            "Yardım",
-                        ],
-                    }
-                    names = [
-                        "start",
-                        "lines",
-                        "settings",
-                        "status",
-                        "pause",
-                        "resume",
-                        "delete_me",
-                        "cancel",
-                        "help",
-                    ]
-                    for language, descriptions in commands.items():
-                        await bot.set_my_commands(
-                            [
-                                BotCommand(command=name, description=description)
-                                for name, description in zip(names, descriptions, strict=True)
-                            ],
-                            language_code=language,
-                        )
+                    await publish_commands(bot)
                     tasks = [
                         asyncio.create_task(monitor.run_poller(), name="source-poller"),
                         asyncio.create_task(monitor.run_scheduler(), name="scheduler"),

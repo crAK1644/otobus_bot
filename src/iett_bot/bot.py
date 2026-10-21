@@ -2,7 +2,8 @@ import asyncio
 import logging
 from datetime import timedelta
 
-from aiogram import BaseMiddleware, F, Router
+from aiogram import BaseMiddleware, Bot, F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -14,6 +15,7 @@ from aiogram.types import (
     LinkPreviewOptions,
     Message,
 )
+from aiogram.utils.payload import decode_payload, encode_payload
 
 from iett_bot.config import Settings
 from iett_bot.db import Store, SubscriptionLimit
@@ -31,6 +33,20 @@ class Flow(StatesGroup):
     schedule = State()
 
 
+def start_payload(code: str) -> str:
+    """Deep-link payloads allow only A-Z, a-z, 0-9, _ and -; other characters are encoded."""
+    return code if code.isascii() else "t_" + encode_payload(code)
+
+
+def code_from_payload(payload: str) -> str:
+    """Inverse of start_payload; raises ValueError for anything that is not a line code."""
+    return normalize_code(decode_payload(payload[2:]) if payload.startswith("t_") else payload)
+
+
+def telegram_language(person) -> str:
+    return "en" if person and (person.language_code or "").startswith("en") else "tr"
+
+
 class UserContext(BaseMiddleware):
     def __init__(self, store: Store):
         self.store = store
@@ -39,8 +55,7 @@ class UserContext(BaseMiddleware):
         person = event.from_user
         if not person:
             return
-        language = "en" if (person.language_code or "").startswith("en") else "tr"
-        data["user"] = await self.store.ensure_user(person.id, language)
+        data["user"] = await self.store.ensure_user(person.id, telegram_language(person))
         return await handler(event, data)
 
 
@@ -71,6 +86,20 @@ def build_router(
     store: Store, source: IettClient, settings: Settings, monitor: Monitor | None = None
 ) -> Router:
     monitor = monitor or Monitor(store, source, settings, Heartbeats())
+    root = Router(name="bot")
+    # Sibling of the subscriptions router, so UserContext never runs for it: reading the privacy
+    # notice must not create a stored user record.
+    public = Router(name="public")
+    public.message.filter(F.chat.type == "private")
+
+    @public.message(Command("privacy"))
+    async def privacy(message: Message) -> None:
+        stored = await store.user(message.chat.id)
+        language = stored["language"] if stored else telegram_language(message.from_user)
+        await message.answer(
+            tr(language, "privacy"), link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
+
     router = Router(name="subscriptions")
     router.message.filter(F.chat.type == "private")
     router.callback_query.filter(F.message.chat.type == "private")
@@ -129,10 +158,19 @@ def build_router(
         return True
 
     @router.message(CommandStart())
-    async def start(message: Message, user: dict, state: FSMContext) -> None:
+    async def start(
+        message: Message, user: dict, state: FSMContext, command: CommandObject
+    ) -> None:
         await state.clear()
         await message.answer(tr(user["language"], "welcome"), reply_markup=keyboard(languages()))
-        await show_lines(message, user)
+        try:
+            code = code_from_payload(command.args) if command.args else None
+        except ValueError:
+            code = None  # A malformed link just gets the normal welcome.
+        if code:
+            await follow_line(message.bot, user, code, state)
+        else:
+            await show_lines(message, user)
 
     @router.message(Command("help"))
     async def help_command(message: Message, user: dict) -> None:
@@ -272,33 +310,35 @@ def build_router(
         await state.set_state(Flow.search)
         await callback.bot.send_message(user["chat_id"], tr(user["language"], "choose_line"))
 
-    @router.callback_query(F.data.startswith("follow:"))
-    async def follow(callback: CallbackQuery, user: dict, state: FSMContext) -> None:
-        await callback.answer()
-        code = callback.data.split(":", 1)[1]
+    async def follow_line(bot: Bot, user: dict, code: str, state: FSMContext) -> None:
         lang = user["language"]
         try:
             line = await source.resolve(code)
             if line is None:
-                await callback.bot.send_message(user["chat_id"], tr(lang, "no_results"))
+                await bot.send_message(user["chat_id"], tr(lang, "no_results"))
                 return
             added = await store.subscribe(user["chat_id"], line, settings.max_subscriptions)
         except SourceError:
-            await callback.bot.send_message(user["chat_id"], tr(lang, "source_error"))
+            await bot.send_message(user["chat_id"], tr(lang, "source_error"))
             return
         except ValueError as exc:
             key = "limit" if isinstance(exc, SubscriptionLimit) else "no_results"
-            await callback.bot.send_message(
-                user["chat_id"], tr(lang, key, limit=settings.max_subscriptions)
-            )
+            await bot.send_message(user["chat_id"], tr(lang, key, limit=settings.max_subscriptions))
             return
         await state.clear()
-        await callback.bot.send_message(
+        confirmation = tr(lang, "subscribed" if added else "already_subscribed", code=line.code)
+        try:
+            share = f"https://t.me/{(await bot.me()).username}?start={start_payload(line.code)}"
+            confirmation += "\n" + tr(lang, "share", url=share)
+        except TelegramAPIError:
+            log.warning("Could not read the bot username; sending the confirmation without a link")
+        await bot.send_message(
             user["chat_id"],
-            tr(lang, "subscribed" if added else "already_subscribed", code=line.code),
+            confirmation,
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
         text = await current_status(user, line.code, summary=True)
-        await callback.bot.send_message(
+        await bot.send_message(
             user["chat_id"],
             text,
             reply_markup=keyboard(
@@ -306,6 +346,11 @@ def build_router(
             ),
             link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
+
+    @router.callback_query(F.data.startswith("follow:"))
+    async def follow(callback: CallbackQuery, user: dict, state: FSMContext) -> None:
+        await callback.answer()
+        await follow_line(callback.bot, user, callback.data.split(":", 1)[1], state)
 
     @router.callback_query(F.data.startswith("remove:"))
     async def remove(callback: CallbackQuery, user: dict) -> None:
@@ -361,4 +406,6 @@ def build_router(
             await message.answer(tr(user["language"] if user else "tr", "unexpected_error"))
         return True
 
-    return router
+    root.include_router(public)
+    root.include_router(router)
+    return root

@@ -8,12 +8,13 @@ TEXT = {
         "welcome": "Welcome! Choose a language, then add your bus lines with /lines. "
         "You can follow several lines. Use /status to check their announcements now.\n"
         "I forward İETT service notices when I detect them. Notices may be published late or "
-        "disappear between checks. This is an independent community project.",
+        "disappear between checks. This is an independent community project. Privacy: /privacy",
         "choose_line": "Send a line code or name (for example 59RH).",
         "no_results": "No matching lines. Try the exact line code.",
         "choose_result": "Choose a line to follow:",
         "subscribed": "Following {code}. I’ll check for current announcements now.",
         "already_subscribed": "You already follow {code}.",
+        "share": "Share this line: {url}",
         "limit": "You can follow up to {limit} lines. Remove one first.",
         "removed": "Unfollowed {code}.",
         "lines": "Your lines (notification hours use Istanbul time):",
@@ -36,6 +37,21 @@ TEXT = {
         "bad_schedule": "Invalid hours. Example: 1,2,3,4,5 07:00-10:00,15:00-19:00\n"
         "Use days 1–7, HH:MM, or ‘all’.",
         "not_subscribed": "Add this line with /lines first.",
+        "privacy": "Privacy\n"
+        "Controller: crAK1644 (GitHub), an individual running this free community bot.\n"
+        "Stored: your Telegram chat ID, language, pause/block state, the lines you follow with "
+        "your notification settings, and delivery records (the alerts sent to you). Phone number, "
+        "location, name, and the text of messages you send are not stored.\n"
+        "Purpose: sending the alerts you asked for. Data is shared only with Telegram (to deliver "
+        "messages) and Oracle Cloud (server and encrypted backups, Frankfurt, Germany). It is "
+        "never sold.\n"
+        "Retention: until you use /delete_me. Public İETT announcement history is deleted about "
+        "90 days after the notice leaves İETT’s page. Encrypted backups can keep deleted data for "
+        "up to about 5 weeks.\n"
+        "Your rights (KVKK art. 11) include access, correction, and deletion. /delete_me deletes "
+        "your data now; for anything else open an issue at "
+        "https://github.com/crAK1644/otobus_bot/issues without personal details and ask for a "
+        "private channel.",
         "paused": "Notifications paused. Monitoring and saving announcements continue. "
         "Use /resume to receive alerts again.",
         "resumed": "Notifications resumed. Current notices will follow your selected hours.",
@@ -74,7 +90,8 @@ TEXT = {
         "help": "/lines — add or remove lines\n/settings — language and notification hours\n"
         "/status — check announcements for all your lines now\n"
         "/status 59RH — check one of your lines\n/pause — pause alerts\n/resume — resume alerts\n"
-        "/delete_me — delete your data\n/cancel — cancel the current step\n\n"
+        "/privacy — what data is stored\n/delete_me — delete your data\n"
+        "/cancel — cancel the current step\n\n"
         "Alerts contain İETT’s original Turkish text. A notice disappearing does not mean "
         "service has resumed. Unchanged notices are not repeated daily.",
     },
@@ -82,12 +99,14 @@ TEXT = {
         "welcome": "Hoş geldiniz! Dilinizi seçin, ardından /lines ile otobüs hatlarınızı ekleyin. "
         "Birden fazla hat takip edebilirsiniz. Güncel duyurular için /status kullanın.\n"
         "İETT hizmet duyurularını gördüğümde size iletirim. Duyurular geç yayımlanabilir veya "
-        "kontroller arasında kaldırılabilir. Bu bağımsız bir topluluk projesidir.",
+        "kontroller arasında kaldırılabilir. Bu bağımsız bir topluluk projesidir. "
+        "Gizlilik: /privacy",
         "choose_line": "Hat kodu veya adı gönderin (örneğin 59RH).",
         "no_results": "Eşleşen hat bulunamadı. Tam hat kodunu deneyin.",
         "choose_result": "Takip etmek istediğiniz hattı seçin:",
         "subscribed": "{code} takip ediliyor. Güncel duyuruları şimdi kontrol edeceğim.",
         "already_subscribed": "{code} hattını zaten takip ediyorsunuz.",
+        "share": "Bu hattı paylaşın: {url}",
         "limit": "En fazla {limit} hat takip edebilirsiniz. Önce bir hattı kaldırın.",
         "removed": "{code} takibi kaldırıldı.",
         "lines": "Hatlarınız (bildirim saatleri İstanbul saatidir):",
@@ -111,6 +130,20 @@ TEXT = {
         "bad_schedule": "Geçersiz saatler. Örnek: 1,2,3,4,5 07:00-10:00,15:00-19:00\n"
         "1–7 günlerini, SS:DD biçimini veya ‘all’ kullanın.",
         "not_subscribed": "Önce /lines ile bu hattı ekleyin.",
+        "privacy": "Gizlilik\n"
+        "Veri sorumlusu: crAK1644 (GitHub), bu ücretsiz topluluk botunu işleten bir birey.\n"
+        "Saklananlar: Telegram sohbet kimliğiniz, dil seçiminiz, duraklatma/engelleme durumu, "
+        "takip ettiğiniz hatlar ve bildirim ayarlarınız ile gönderim kayıtları (size gönderilen "
+        "duyurular). Telefon numarası, konum, ad ve gönderdiğiniz mesajların metni saklanmaz.\n"
+        "Amaç: yalnızca istediğiniz bildirimleri göndermek. Veriler yalnızca Telegram (mesajları "
+        "iletmek için) ve Oracle Cloud (sunucu ve şifreli yedekler, Frankfurt, Almanya) ile "
+        "paylaşılır; satılmaz.\n"
+        "Saklama: /delete_me ile silene kadar. Herkese açık İETT duyuru geçmişi, duyuru İETT "
+        "sayfasından kalktıktan yaklaşık 90 gün sonra silinir. Şifreli yedeklerde silinen veriler "
+        "yaklaşık 5 hafta kalabilir.\n"
+        "Haklarınız (KVKK m. 11): erişim, düzeltme, silme vb. /delete_me verilerinizi hemen siler; "
+        "diğer talepler için https://github.com/crAK1644/otobus_bot/issues adresinde kişisel bilgi "
+        "paylaşmadan bir kayıt açın ve özel bir iletişim kanalı isteyin.",
         "paused": "Bildirimler duraklatıldı. Duyurular izlenip kaydedilmeye devam ediyor. "
         "Bildirimleri açmak için /resume kullanın.",
         "resumed": "Bildirimler açıldı. Güncel duyurular seçtiğiniz saatlerde iletilecek.",
@@ -150,7 +183,8 @@ TEXT = {
         "help": "/lines — hat ekle veya kaldır\n/settings — dil ve bildirim saatleri\n"
         "/status — tüm hatlarınızın duyurularını şimdi kontrol et\n"
         "/status 59RH — takip ettiğiniz bir hattı kontrol et\n/pause — bildirimleri duraklat\n"
-        "/resume — bildirimleri aç\n/delete_me — verilerini sil\n/cancel — işlemi iptal et\n\n"
+        "/resume — bildirimleri aç\n/privacy — hangi veriler saklanır\n"
+        "/delete_me — verilerini sil\n/cancel — işlemi iptal et\n\n"
         "Duyurular İETT’nin özgün Türkçe metniyle iletilir. Bir duyurunun kaldırılması, "
         "seferin yeniden başladığı anlamına gelmez. Aynı duyuru her gün tekrar gönderilmez.",
     },
