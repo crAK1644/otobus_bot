@@ -40,6 +40,7 @@ esac
     "curl": '#!/bin/sh\necho "curl $*" >> "$STUB_LOG"\n',
     "date": '#!/bin/sh\n[ "$1" = "+%u" ] && echo "$STUB_WEEKDAY" || exec /bin/date "$@"\n',
     "sleep": "#!/bin/sh\n",
+    "flock": "#!/bin/sh\nexit 0\n",
 }
 
 
@@ -63,6 +64,7 @@ def run(tmp_path, script, settings=SETTINGS, mode=0o600, **stub_env):
         env={
             "PATH": f"{bin_dir}:{os.environ['PATH']}",
             "BACKUP_ENV_FILE": str(env_file),
+            "BACKUP_STATUS_DIR": str(tmp_path / "status"),
             "STUB_LOG": str(log),
             "STUB_DUMP": "ok",
             "STUB_WEEKDAY": "1",
@@ -85,6 +87,8 @@ def test_successful_backup_uploads_prunes_and_pings(tmp_path):
     assert f"curl -fsS -m 10 --retry 3 -o /dev/null {PING}\n" in calls
     assert "restic check" not in calls
     assert leftovers == []  # the plaintext dump is always removed
+    assert (tmp_path / "status/backup-success").exists()
+    assert not (tmp_path / "status/backup-failed").exists()
 
 
 def test_sunday_backup_also_checks_the_repository(tmp_path):
@@ -101,6 +105,7 @@ def test_bad_dump_is_never_uploaded_and_reports_failure(tmp_path, failure):
     assert "restic" not in calls
     assert f"{PING}/fail" in calls
     assert leftovers == []
+    assert (tmp_path / "status/backup-failed").exists()
 
 
 def test_upload_failure_reports_failure_and_never_prunes_or_reports_success(tmp_path):
@@ -109,6 +114,7 @@ def test_upload_failure_reports_failure_and_never_prunes_or_reports_success(tmp_
     assert "restic forget" not in calls
     assert f"{PING}/fail" in calls and f"{PING}\n" not in calls
     assert leftovers == []
+    assert (tmp_path / "status/backup-failed").exists()
 
 
 def test_missing_setting_fails_loudly_before_any_work(tmp_path):
@@ -149,11 +155,13 @@ def test_restore_drill_restores_the_resolved_snapshot_and_cleans_up(tmp_path):
     name = next(part for part in calls.split() if part.startswith("iett-restore-drill-"))
     assert f"docker rm -f {name}" in calls  # unique per run, cleaned up by that name
     assert leftovers == []
+    assert (tmp_path / "status/restore-success").exists()
 
 
 def test_restore_drill_fails_when_backup_restores_empty_but_live_has_data(tmp_path):
     result, _, _ = run(tmp_path, "restore-drill.sh", STUB_RESTORED="0")
     assert result.returncode == 1
+    assert (tmp_path / "status/restore-failed").exists()
 
 
 def test_restore_drill_reports_a_container_that_never_becomes_ready(tmp_path):

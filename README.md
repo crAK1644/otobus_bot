@@ -201,6 +201,12 @@ five minutes. When pings stop, the service alerts you, including when the whole 
 long İETT outage also silences it and may mean the source format changed. `/readyz` uses the same
 rule. The URL is a secret and is never logged.
 
+For monitoring without a new service account, the optional [GitHub Actions monitor](ops/README.md)
+checks the VM from outside Oracle every five minutes and sends Telegram incident/recovery alerts.
+It checks the same readiness endpoint, backup age and failed restore tests. It uses a separate SSH
+key restricted to a root-owned status command; it cannot open a shell or read subscriber records.
+GitHub scheduling can be delayed, so this is an operational alert target, not a delivery guarantee.
+
 For the 59RH pilot, check `/status`, observe a real announcement if available, verify detection time
 and the official link, and check that disappearance produces no false restoration alert. The automated
 simulated-cancellation test covers capture → persistent queue → Telegram send even after source deletion.
@@ -216,6 +222,11 @@ Storage's S3 endpoint, `https://<namespace>.compat.objectstorage.<region>.oracle
 and 4 weekly snapshots (about five weeks), and runs `restic check` on Sundays. A failed dump is never
 uploaded. Each snapshot is a full dump, so storage is roughly the dump size times eleven. Use a bucket
 dedicated to this repository: retention is applied to every `iett-db` snapshot in it.
+The supplied cron file uses a UTC server clock: backups run daily at 03:17 Istanbul time and restore
+drills on the first of each month at 04:41. A lock prevents overlapping backup and restore jobs.
+Success/failure markers under `/var/lib/iett-monitor` let the external monitor detect backup failures
+without a Healthchecks account. Install `ops/iett-backup.logrotate` in `/etc/logrotate.d/iett-backup`
+to rotate the job log.
 
 One-time setup on the server (the bot runs as `sudo` Docker, so cron runs as root):
 

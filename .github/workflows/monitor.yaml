@@ -1,0 +1,31 @@
+name: Production monitor
+on:
+  schedule:
+    - cron: "2-59/5 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: production-monitor
+  cancel-in-progress: false
+jobs:
+  monitor:
+    # Public forks must configure their own monitoring credentials explicitly.
+    if: vars.IETT_MONITOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check readiness and backups; notify only on incidents and recovery
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          IETT_MONITOR_HOST: ${{ secrets.IETT_MONITOR_HOST }}
+          IETT_MONITOR_HOST_KEY: ${{ secrets.IETT_MONITOR_HOST_KEY }}
+          IETT_MONITOR_SSH_KEY: ${{ secrets.IETT_MONITOR_SSH_KEY }}
+          IETT_MONITOR_BOT_TOKEN: ${{ secrets.IETT_MONITOR_BOT_TOKEN }}
+          IETT_MONITOR_CHAT_ID: ${{ secrets.IETT_MONITOR_CHAT_ID }}
+        run: python3 ops/external_monitor.py

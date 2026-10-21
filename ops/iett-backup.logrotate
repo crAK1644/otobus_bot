@@ -1,0 +1,9 @@
+/var/log/iett-backup.log {
+    weekly
+    rotate 8
+    size 1M
+    compress
+    missingok
+    notifempty
+    create 0640 root root
+}

@@ -1,2 +1,5 @@
-# Install: sudo cp ops/iett-backup.cron /etc/cron.d/iett-backup (adjust the path). Server time.
-17 3 * * * root /home/ubuntu/apps/otobus_bot/ops/backup.sh >> /var/log/iett-backup.log 2>&1
+# Ubuntu server uses UTC: daily 03:17 and monthly 04:41 Europe/Istanbul.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+17 0 * * * root /home/ubuntu/apps/otobus_bot/ops/backup.sh >> /var/log/iett-backup.log 2>&1
+41 1 1 * * root /home/ubuntu/apps/otobus_bot/ops/restore-drill.sh >> /var/log/iett-backup.log 2>&1
