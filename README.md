@@ -245,9 +245,11 @@ One-time setup on the server (the bot runs as `sudo` Docker, so cron runs as roo
 
    **Store `RESTIC_PASSWORD` in a password manager too: without it the backups cannot be read.**
 3. Initialize the repository once: `sudo bash -c 'set -a; . ./.env.backup; set +a; restic init'`.
-4. Create a [healthchecks.io](https://healthchecks.io) check with a one-day period and six-hour grace,
-   and put its URL in `BACKUP_PING_URL`. It alerts you when a backup fails (`/fail`) or does not run. Failures before the settings load
-   (a missing file or a wrong mode) cannot ping, so they show up as a missed backup.
+4. Configure the [external GitHub monitor](ops/README.md), or optionally create a
+   [healthchecks.io](https://healthchecks.io) check with a one-day period and six-hour grace and put
+   its URL in `BACKUP_PING_URL`. The GitHub monitor uses local success/failure markers and requires no
+   Healthchecks account. A Healthchecks URL receives `/fail` on job failure; failures before settings
+   load cannot ping and therefore show up as a missed backup.
 5. Run `sudo ops/backup.sh` once, then `sudo ops/restore-drill.sh`, then install the schedule:
    `sudo cp ops/iett-backup.cron /etc/cron.d/iett-backup` (check the path and server time inside).
 
