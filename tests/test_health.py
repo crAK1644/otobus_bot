@@ -34,3 +34,18 @@ async def test_health_readiness_metrics_and_database_failure():
         store.metrics.side_effect = ConnectionError("simulated database outage")
         assert (await client.get("/readyz")).status == 503
         assert (await client.get("/metrics")).status == 503
+
+
+async def test_readiness_fails_on_overdue_deliveries():
+    store = Mock(
+        metrics=AsyncMock(return_value={"source_age_seconds": 30.0, "overdue_deliveries": 1.0})
+    )
+    beats = Heartbeats()
+    beats.tick("poller")
+    async with TestClient(
+        TestServer(make_health_app(store, beats, Settings(_env_file=None)))
+    ) as client:
+        assert (await client.get("/readyz")).status == 503
+        assert (await client.get("/healthz")).status == 200
+        store.metrics.return_value["overdue_deliveries"] = 0.0
+        assert (await client.get("/readyz")).status == 200

@@ -4,6 +4,8 @@ import random
 from dataclasses import dataclass, field
 from datetime import timedelta
 
+import httpx
+
 from iett_bot.config import Settings
 from iett_bot.db import Store
 from iett_bot.domain import utcnow
@@ -23,6 +25,24 @@ class Heartbeats:
         if not self.ticks:
             return float("inf")
         return max((utcnow() - tick).total_seconds() for tick in self.ticks.values())
+
+
+def is_ready(metrics: dict, beats: Heartbeats, settings: Settings) -> bool:
+    """Workers alive, source data fresh, and no due delivery stuck for minutes."""
+    return (
+        beats.age() < max(60, settings.http_timeout_seconds * 5)
+        and metrics["source_age_seconds"] <= settings.stale_after_seconds
+        and metrics.get("overdue_deliveries", 0) == 0
+    )
+
+
+async def send_ping(url: str) -> None:
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            (await client.get(url)).raise_for_status()
+    except Exception as exc:  # a bad URL must never stop the scheduler
+        # The URL is a secret: log only the error class.
+        log.warning("Dead-man ping failed (%s)", type(exc).__name__)
 
 
 class Monitor:
@@ -80,6 +100,12 @@ class Monitor:
             )
             return True
 
+    async def ping(self, metrics: dict) -> None:
+        """Signal a dead-man switch only while healthy; silence is the alert."""
+        url = self.settings.healthcheck_ping_url.get_secret_value()
+        if url and is_ready(metrics, self.beats, self.settings):
+            await send_ping(url)
+
     async def run_poller(self) -> None:
         while True:
             self.beats.tick("poller")
@@ -111,5 +137,6 @@ class Monitor:
                 log.info("Monitor metrics %s", metrics)
                 if metrics["source_age_seconds"] > self.settings.stale_after_seconds:
                     log.warning("Announcement source freshness target exceeded")
+                await self.ping(metrics)
                 metrics_at = now + timedelta(minutes=1)
             await asyncio.sleep(1)

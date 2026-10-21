@@ -264,3 +264,33 @@ async def test_unsubscribe_invalidates_claim_and_parallel_polling_is_deduplicate
     job = await store.claim_delivery(NOW)
     await store.unsubscribe(42, job["line_code"])
     assert not await store.delivery_allowed(job["id"], NOW)
+
+
+async def test_overdue_deliveries_ignore_paused_and_blocked_users(store):
+    await subscribe(store)
+    await snapshot(store)
+    assert (await store.metrics(NOW + timedelta(minutes=4)))["overdue_deliveries"] == 0
+    late = NOW + timedelta(minutes=6)
+    assert (await store.metrics(late))["overdue_deliveries"] == 1
+    await store.set_paused(42, True)
+    assert (await store.metrics(late))["overdue_deliveries"] == 0
+    await store.set_paused(42, False)
+    assert (await store.metrics(late))["overdue_deliveries"] == 1
+    await store.block_user(42)
+    assert (await store.metrics(late))["overdue_deliveries"] == 0
+
+
+async def test_overdue_deliveries_follow_the_workers_closed_hours_reschedule(store):
+    # NOW is Wednesday 07:45 Istanbul: inside this window when queued.
+    await subscribe(store, schedule="3 07:00-10:00")
+    await snapshot(store)
+    closed = NOW + timedelta(hours=3)
+    # Until a delivery pass reschedules it, the row looks overdue: a stalled worker is the signal.
+    assert (await store.metrics(closed))["overdue_deliveries"] == 1
+    assert await store.claim_delivery(closed) is None
+    assert (await store.metrics(closed))["overdue_deliveries"] == 0
+    # Once the next window has opened, an unclaimed row is overdue again.
+    next_window = (await store.pool.fetchval("SELECT next_attempt_at FROM outbox")) + timedelta(
+        minutes=6
+    )
+    assert (await store.metrics(next_window))["overdue_deliveries"] == 1

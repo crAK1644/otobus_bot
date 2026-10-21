@@ -3,7 +3,7 @@ from aiohttp import web
 from iett_bot.config import Settings
 from iett_bot.db import Store
 from iett_bot.domain import utcnow
-from iett_bot.worker import Heartbeats
+from iett_bot.worker import Heartbeats, is_ready
 
 
 def make_health_app(store: Store, beats: Heartbeats, settings: Settings) -> web.Application:
@@ -18,8 +18,7 @@ def make_health_app(store: Store, beats: Heartbeats, settings: Settings) -> web.
             metrics = await store.metrics(utcnow())
         except Exception:
             return web.json_response({"ready": False}, status=503)
-        fresh = metrics["source_age_seconds"] <= settings.stale_after_seconds
-        available = beats.age() < max(60, settings.http_timeout_seconds * 5) and fresh
+        available = is_ready(metrics, beats, settings)
         return web.json_response({"ready": available, **metrics}, status=200 if available else 503)
 
     async def metrics(_: web.Request) -> web.Response:

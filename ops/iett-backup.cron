@@ -1,0 +1,2 @@
+# Install: sudo cp ops/iett-backup.cron /etc/cron.d/iett-backup (adjust the path). Server time.
+17 3 * * * root /home/ubuntu/apps/otobus_bot/ops/backup.sh >> /var/log/iett-backup.log 2>&1

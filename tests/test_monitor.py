@@ -1,9 +1,11 @@
 import asyncio
 from datetime import timedelta
+from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
 
+from iett_bot import worker
 from iett_bot.config import Settings
 from iett_bot.domain import Line, utcnow
 from iett_bot.iett import IettClient
@@ -90,3 +92,39 @@ async def test_new_subscriber_does_not_bypass_source_retry_after(store):
         assert not await monitor.refresh("59RH")
         assert (await store.line_state("59RH"))["next_poll_at"] == retry_at
     assert len(requests) == 1
+
+
+async def test_ping_only_while_healthy_and_never_logs_url(monkeypatch, caplog):
+    sent = AsyncMock()
+    monkeypatch.setattr(worker, "send_ping", sent)
+    url = "https://hc-ping.example/secret-uuid"
+    beats = worker.Heartbeats()
+    beats.tick("poller")
+    healthy = {"source_age_seconds": 30.0, "overdue_deliveries": 0.0}
+
+    monitor = worker.Monitor(
+        Mock(), Mock(), Settings(_env_file=None, healthcheck_ping_url=url), beats
+    )
+    await monitor.ping(healthy)
+    sent.assert_awaited_once_with(url)
+    for bad in ({**healthy, "source_age_seconds": 601.0}, {**healthy, "overdue_deliveries": 2.0}):
+        await monitor.ping(bad)
+    stale_beats = worker.Heartbeats()
+    await worker.Monitor(
+        Mock(), Mock(), Settings(_env_file=None, healthcheck_ping_url=url), stale_beats
+    ).ping(healthy)
+    await worker.Monitor(Mock(), Mock(), Settings(_env_file=None), beats).ping(healthy)
+    assert sent.await_count == 1  # unhealthy, no heartbeat, or no URL: silence
+
+    monkeypatch.undo()
+    transport = httpx.MockTransport(lambda request: httpx.Response(500))
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real_client(transport=transport, **kw))
+    with caplog.at_level("WARNING"):
+        await worker.send_ping(url)
+    assert "HTTPStatusError" in caplog.text and "secret-uuid" not in caplog.text
+
+    monkeypatch.undo()
+    caplog.clear()
+    await worker.send_ping("https://exa mple.com/\x00secret-uuid")  # httpx.InvalidURL
+    assert "InvalidURL" in caplog.text and "secret-uuid" not in caplog.text

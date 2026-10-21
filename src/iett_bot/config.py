@@ -7,6 +7,7 @@ class Settings(BaseSettings):
 
     bot_token: SecretStr = SecretStr("")
     legacy_bot_token: SecretStr = SecretStr("")
+    healthcheck_ping_url: SecretStr = SecretStr("")
     database_url: SecretStr = SecretStr("")
     poll_interval_seconds: float = Field(default=60, ge=10)
     poll_concurrency: int = Field(default=2, ge=1, le=10)

@@ -452,7 +452,10 @@ class Store:
             "(SELECT EXTRACT(EPOCH FROM ($1-min(COALESCE(last_success_at,l.created_at)))) "
             "FROM lines l WHERE EXISTS(SELECT 1 FROM subscriptions s JOIN users u "
             "USING(chat_id) WHERE s.line_code=l.code AND NOT u.blocked)) AS source_age_seconds,"
-            "(SELECT count(*) FROM incidents WHERE ended_at IS NULL) AS active_outages",
+            "(SELECT count(*) FROM incidents WHERE ended_at IS NULL) AS active_outages,"
+            "(SELECT count(*) FROM outbox q JOIN users u USING(chat_id) "
+            "WHERE q.status='pending' AND NOT u.paused AND NOT u.blocked "
+            "AND q.next_attempt_at < $1 - interval '5 minutes') AS overdue_deliveries",
             now,
         )
         return {key: float(value or 0) for key, value in dict(row).items()}

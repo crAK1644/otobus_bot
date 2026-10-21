@@ -180,6 +180,13 @@ Monitor `iett_source_age_seconds`, `iett_pending`, `iett_oldest_pending_seconds`
 Compose restarts crashed processes; configure your server monitor to alert on failures and stale
 readiness. Long polling reconnects automatically. Credentials and announcement bodies are not logged.
 
+Set `HEALTHCHECK_PING_URL` (for example a [healthchecks.io](https://healthchecks.io) check with a
+one-minute period and ten-minute grace) for an independent dead-man alert. The scheduler pings it every
+minute **only while** workers are alive, source data is fresh, and no due delivery has been overdue for
+five minutes. When pings stop, the service alerts you, including when the whole server is down. A
+long İETT outage also silences it and may mean the source format changed. `/readyz` uses the same
+rule. The URL is a secret and is never logged.
+
 For the 59RH pilot, check `/status`, observe a real announcement if available, verify detection time
 and the official link, and check that disappearance produces no false restoration alert. The automated
 simulated-cancellation test covers capture → persistent queue → Telegram send even after source deletion.
@@ -188,25 +195,61 @@ from before deployment cannot be recovered through this feed.
 
 ### Backups and updates
 
+The database holds every subscriber, so it is backed up nightly, encrypted on the server with
+[restic](https://restic.net), to S3-compatible object storage outside the VM (for example OCI Object
+Storage's S3 endpoint, `https://<namespace>.compat.objectstorage.<region>.oraclecloud.com`).
+`ops/backup.sh` dumps the database to a temporary file, verifies the archive, uploads it, keeps 7 daily
+and 4 weekly snapshots (about five weeks), and runs `restic check` on Sundays. A failed dump is never
+uploaded. Each snapshot is a full dump, so storage is roughly the dump size times eleven. Use a bucket
+dedicated to this repository: retention is applied to every `iett-db` snapshot in it.
+
+One-time setup on the server (the bot runs as `sudo` Docker, so cron runs as root):
+
+1. Create a private, dedicated bucket and an S3 access key pair for it. Install restic: `sudo apt install restic`.
+2. Create `.env.backup` next to `.env` and `chmod 600` it (Git-ignored). Root sources this file, so the
+   scripts refuse any other mode. Quote values containing spaces:
+
+   ```sh
+   RESTIC_REPOSITORY=s3:https://<namespace>.compat.objectstorage.eu-frankfurt-1.oraclecloud.com/<bucket>
+   RESTIC_PASSWORD=<long random password>
+   AWS_ACCESS_KEY_ID=<access key>
+   AWS_SECRET_ACCESS_KEY=<secret key>
+   AWS_DEFAULT_REGION=eu-frankfurt-1
+   BACKUP_PING_URL=<healthchecks.io check URL, optional>
+   ```
+
+   **Store `RESTIC_PASSWORD` in a password manager too: without it the backups cannot be read.**
+3. Initialize the repository once: `sudo bash -c 'set -a; . ./.env.backup; set +a; restic init'`.
+4. Create a [healthchecks.io](https://healthchecks.io) check with a one-day period and six-hour grace,
+   and put its URL in `BACKUP_PING_URL`. It alerts you when a backup fails (`/fail`) or does not run. Failures before the settings load
+   (a missing file or a wrong mode) cannot ping, so they show up as a missed backup.
+5. Run `sudo ops/backup.sh` once, then `sudo ops/restore-drill.sh`, then install the schedule:
+   `sudo cp ops/iett-backup.cron /etc/cron.d/iett-backup` (check the path and server time inside).
+
+`ops/restore-drill.sh` restores the newest snapshot into a throwaway PostgreSQL container with no
+network and compares row counts with the live database. Repeat it after every change to the backup
+setup and at least quarterly. To recover from a lost server, install Docker and restic, recreate `.env`
+and `.env.backup`, bring up only the database, restore the dump into the **new, empty** database, and
+start the bot:
+
 ```sh
-mkdir -p backups
-docker compose exec -T db pg_dump -U iett -d iett -Fc > backups/iett.dump
+sudo bash -c 'set -a; . ./.env.backup; set +a; restic restore latest --tag iett-db --target /var/tmp/restore'
+sudo docker compose -p iett-alerts -f compose.yaml -f compose.production.yaml up -d db
+sudo docker compose -p iett-alerts -f compose.yaml -f compose.production.yaml exec -T db \
+  pg_restore -U iett -d iett --no-owner < /var/tmp/restore/iett.dump
+sudo docker compose -p iett-alerts -f compose.yaml -f compose.production.yaml up -d
+sudo rm -rf /var/tmp/restore
 ```
 
-Backups contain personal data. Restrict access and keep them encrypted off the server. For restoration,
-stop the bot and restore into a **new, empty** database:
+Backups contain personal data: restrict access to the bucket and keys. Data removed with `/delete_me`
+can remain in backups for up to about five weeks, and restoring a backup can bring it back, so
+re-apply recent deletion requests after a restore. A quick manual dump is still possible with
+`docker compose exec -T db pg_dump -U iett -d iett -Fc > backups/iett.dump`.
 
-```sh
-docker compose stop bot
-# Point the database service at a fresh empty volume/database before this command.
-docker compose exec -T db pg_restore -U iett -d iett --no-owner < backups/iett.dump
-docker compose up -d bot
-```
-
-Before an update, take and verify a backup. Pull the code and run `docker compose up -d --build`.
+Before an update, run `sudo ops/backup.sh`. Pull the code and run `docker compose up -d --build`.
 Migrations are forward-only and transactional. Roll back application code only if compatible with the
-installed schema; otherwise restore the pre-update backup into a fresh database. Test restoration
-periodically. Deleting a Docker volume deletes the database; ordinary container rebuilds preserve it.
+installed schema; otherwise restore the pre-update backup into a fresh database. Deleting a Docker
+volume deletes the database; ordinary container rebuilds preserve it.
 
 ## Privacy, retention, and configuration
 
