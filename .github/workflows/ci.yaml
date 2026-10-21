@@ -31,3 +31,12 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Simulate a private server checkout
+        run: chmod -R go-rwx src
+      - run: docker build -t iett-alerts:ci .
+      - name: Verify the unprivileged container entry point
+        run: docker run --rm --read-only --network none iett-alerts:ci iett-bot --help
