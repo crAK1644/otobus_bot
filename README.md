@@ -9,7 +9,12 @@ closure, and timetable notices. Controls are available in Turkish and English; a
 
 Open [@cmp_visitor_bot on Telegram](https://t.me/cmp_visitor_bot), press **Start**, and use `/lines`
 to follow your bus lines. For the 59RH pilot, send `/lines 59RH` and select the matching result.
-Use `/settings` to change language or notification hours and `/status` to see source freshness.
+You can follow up to 20 lines: use `/lines` → **Add a line** for each additional line.
+After following, the bot immediately checks and replies with the number of announcements or says
+there are none. Existing notices are delivered according to your notification hours and pause setting.
+Use `/settings` to change language or notification hours. Use `/status` to check announcements for
+all your lines now, `/status 59RH` for one followed line, or its **Check now** button to read the full
+announcements, even while automatic alerts are paused or outside your notification hours.
 The hosted bot runs on an always-on server; subscribers do not need to install or run this code.
 
 The bot is an independent community project, not an official İETT service. It can only forward notices
@@ -55,7 +60,8 @@ lines; monitor available disk space and keep off-server backups.
 | `/lines 59RH` | Search directly for a line |
 | `/settings` | Change language and per-line notification hours |
 | `/settings en` or `/settings tr` | Set the control language |
-| `/status` | Show captured notices and last successful source check |
+| `/status` | Refresh and show announcements for all followed lines, with last successful check |
+| `/status 59RH` | Refresh and show announcements for one followed line |
 | `/pause` / `/resume` | Pause or resume delivery; monitoring continues |
 | `/delete_me` | Confirm deletion of personal data |
 | `/cancel` | Cancel the current interaction |
@@ -90,7 +96,11 @@ uses direct JSON requests and does not need a paid scraping service, AI service,
 
 Each distinct subscribed line is polled once per cycle regardless of subscriber count, including when
 subscribers mute alerts. Default checks target 60 seconds, with ±10% jitter and two concurrent
-requests. Under heavy load or upstream throttling the interval can grow. Failed requests back off up
+requests. Under heavy load or upstream throttling the interval can grow. Manual checks share
+successful results captured within the last ten seconds and use the
+same concurrency limit and backoff as automatic checks. They also persist captured notices and
+enqueue automatic alerts without creating duplicate occurrences or deliveries. Failed refreshes
+explicitly identify any displayed notices as the last successful result. Failed requests back off up
 to about 15 minutes and honor upstream `Retry-After` delays. Empty JSON arrays are successful checks;
 invalid JSON, HTTP errors, and unexpected shapes do not clear saved data.
 

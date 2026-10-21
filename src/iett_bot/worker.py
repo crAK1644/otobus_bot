@@ -28,8 +28,39 @@ class Heartbeats:
 class Monitor:
     def __init__(self, store: Store, source: IettClient, settings: Settings, beats: Heartbeats):
         self.store, self.source, self.settings, self.beats = store, source, settings, beats
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._checks = asyncio.Semaphore(settings.poll_concurrency)
 
     async def poll(self, row: dict) -> None:
+        async with self._locks.setdefault(row["code"], asyncio.Lock()):
+            current = await self.store.line_state(row["code"])
+            if current is None:
+                return
+            # A command may have checked this line since the poller claimed it.
+            if "last_attempt_at" in row and row["last_attempt_at"] != current["last_attempt_at"]:
+                return
+            async with self._checks:
+                await self._poll(current)
+
+    async def refresh(self, code: str) -> bool:
+        """Check on demand, sharing recent results and respecting source backoff."""
+        async with self._locks.setdefault(code, asyncio.Lock()):
+            row = await self.store.line_state(code)
+            if row is None:
+                return False
+            now = utcnow()
+            if row["failure_count"]:
+                if row["next_poll_at"] > now:
+                    return False
+            elif row["last_success_at"] and now - row["last_success_at"] < timedelta(seconds=10):
+                return True
+            async with self._checks:
+                await self.store.start_check(
+                    code, utcnow(), timedelta(seconds=self.settings.http_timeout_seconds + 30)
+                )
+                return await self._poll(row)
+
+    async def _poll(self, row: dict) -> bool:
         interval = self.settings.poll_interval_seconds
         try:
             snapshot = await self.source.fetch(row["code"])
@@ -39,6 +70,7 @@ class Monitor:
             now = utcnow()
             await self.store.record_failure(row["code"], now, now + timedelta(seconds=delay))
             log.warning("Source check failed for line %s", row["code"])
+            return False
         else:
             delay = interval * random.uniform(0.9, 1.1)
             await self.store.record_snapshot(
@@ -46,6 +78,7 @@ class Monitor:
                 snapshot.checked_at + timedelta(seconds=delay),
                 timedelta(seconds=self.settings.stale_after_seconds),
             )
+            return True
 
     async def run_poller(self) -> None:
         while True:

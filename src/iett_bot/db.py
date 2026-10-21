@@ -90,7 +90,8 @@ class Store:
                 raise SubscriptionLimit
             await conn.execute(
                 "INSERT INTO lines(code,name) VALUES($1,$2) ON CONFLICT(code) "
-                "DO UPDATE SET name=excluded.name, next_poll_at=LEAST(lines.next_poll_at,now())",
+                "DO UPDATE SET name=excluded.name, next_poll_at=CASE WHEN lines.failure_count>0 "
+                "THEN lines.next_poll_at ELSE LEAST(lines.next_poll_at,now()) END",
                 line.code,
                 line.name,
             )
@@ -141,6 +142,19 @@ class Store:
                 code,
             )
         ]
+
+    async def line_state(self, code: str) -> dict | None:
+        row = await self.pool.fetchrow("SELECT * FROM lines WHERE code=$1", code)
+        return dict(row) if row else None
+
+    async def start_check(self, code: str, now: datetime, lease: timedelta) -> None:
+        await self.pool.execute(
+            "UPDATE lines SET last_attempt_at=$2,next_poll_at=$2::timestamptz+$3::interval "
+            "WHERE code=$1",
+            code,
+            now,
+            lease,
+        )
 
     async def due_lines(self, now: datetime, limit: int, lease: timedelta) -> list[dict]:
         rows = await self.pool.fetch(

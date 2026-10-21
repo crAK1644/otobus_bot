@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -9,6 +9,7 @@ from aiogram.types import CallbackQuery, Chat, Message, Update, User
 
 from iett_bot.bot import build_router
 from iett_bot.config import Settings
+from iett_bot.domain import utcnow
 from iett_bot.iett import IettClient
 
 pytestmark = pytest.mark.integration
@@ -46,6 +47,8 @@ async def test_onboarding_settings_status_and_delete(store, fixture_json):
     dispatcher = Dispatcher()
 
     def respond(request):
+        if request.url.path.endswith("GetLineStatus"):
+            return httpx.Response(200, json=[])
         return httpx.Response(200, json=fixture_json("search_59rh.json"))
 
     async with httpx.AsyncClient(
@@ -98,6 +101,7 @@ async def test_onboarding_settings_status_and_delete(store, fixture_json):
         )
         await callback("follow:59RH")
         assert len(await store.subscriptions(42)) == 1
+        assert "No notices" in session.requests[-1].text
         await message("/settings 59RH 1,2,3,4,5 07:00-10:00,15:00-19:00")
         assert "Hours saved" in session.requests[-1].text
         await callback("hours:59RH")
@@ -111,7 +115,8 @@ async def test_onboarding_settings_status_and_delete(store, fixture_json):
         assert not (await store.user(42))["paused"]
         await message("/status")
         assert "59RH" in session.requests[-1].text
-        assert "İlk başarılı kontrol bekleniyor" in session.requests[-1].text
+        assert "Son başarılı kontrol" in session.requests[-1].text
+        assert "duyuru yok" in session.requests[-1].text
         await message("/delete_me")
         assert await store.user(42) is not None  # Confirmation is required for deletion.
         await callback("delete:yes")
@@ -119,6 +124,116 @@ async def test_onboarding_settings_status_and_delete(store, fixture_json):
         assert "Kişisel verileriniz silindi" in session.requests[-1].text
     await dispatcher.storage.close()
     await bot.session.close()
+
+
+class Conversation:
+    def __init__(self, dispatcher, bot, session):
+        self.dispatcher, self.bot, self.session = dispatcher, bot, session
+        self.person = User(id=42, is_bot=False, first_name="Test", language_code="en")
+        self.chat = Chat(id=42, type="private")
+        self.notices = {"59RH": [], "43R": ["TEST: 43R güzergâh değişikliği."]}
+        self.failed = set()
+        self.update_id = 0
+
+    def respond(self, request):
+        if request.url.path.endswith("GetSearchItems"):
+            code = request.url.params["key"]
+            return httpx.Response(
+                200,
+                json={"list": [{"Code": code, "Name": code, "Path": f"/RouteDetail?hkod={code}"}]},
+            )
+        code = request.url.params["rcode"]
+        return (
+            httpx.Response(503)
+            if code in self.failed
+            else httpx.Response(200, json=self.notices[code])
+        )
+
+    async def send(self, text=None, callback=None):
+        self.update_id += 1
+        message = Message(
+            message_id=self.update_id,
+            date=utcnow(),
+            chat=self.chat,
+            from_user=self.person,
+            text=text or "Button",
+        )
+        if callback:
+            update = Update(
+                update_id=self.update_id,
+                callback_query=CallbackQuery(
+                    id=str(self.update_id),
+                    from_user=self.person,
+                    chat_instance="test",
+                    data=callback,
+                    message=message,
+                ),
+            )
+        else:
+            update = Update(update_id=self.update_id, message=message)
+        await self.dispatcher.feed_update(self.bot, update)
+        return self.session.requests[-1].text
+
+
+@pytest.fixture
+async def conversation(store):
+    session = RecordingSession()
+    bot = Bot("123456:TEST_TOKEN_NEVER_SENT_TO_TELEGRAM", session=session)
+    dispatcher = Dispatcher()
+    conversation = Conversation(dispatcher, bot, session)
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(conversation.respond), base_url="https://iett.istanbul"
+    ) as client:
+        dispatcher.include_router(build_router(store, IettClient(client), Settings(_env_file=None)))
+        yield conversation
+    await dispatcher.storage.close()
+    await bot.session.close()
+
+
+async def test_follow_multiple_lines_and_read_current_notices_while_paused(store, conversation):
+    empty = await conversation.send(callback="follow:59RH")
+    assert "No notices" in empty and "59RH" in empty
+    present = await conversation.send(callback="follow:43R")
+    assert "latest successful check: 1" in present
+    assert len(await store.subscriptions(42)) == 2
+    assert await store.pool.fetchval("SELECT count(*) FROM outbox") == 1
+    await conversation.send("/pause")
+    all_lines = await conversation.send("/status")
+    assert "59RH" in all_lines and "43R" in all_lines
+    assert conversation.notices["43R"][0] in all_lines
+    assert "No notices" in all_lines and "First detected" in all_lines
+    one_line = await conversation.send("/status 59RH")
+    assert "59RH" in one_line and "43R" not in one_line
+    button = await conversation.send(callback="check:43R")
+    assert conversation.notices["43R"][0] in button
+    assert await store.pool.fetchval("SELECT count(*) FROM outbox") == 1
+    assert "Add this line" in await conversation.send("/status 500T")
+
+
+async def test_status_captures_new_notices_and_failed_refresh_keeps_last_result(
+    store, conversation
+):
+    await conversation.send(callback="follow:59RH")
+    conversation.notices["59RH"] = ["TEST: 59RH seferi iptal edilmiştir."]
+    await store.pool.execute(
+        "UPDATE lines SET last_success_at=$1 WHERE code='59RH'", utcnow() - timedelta(seconds=11)
+    )
+    text = await conversation.send("/status")
+    assert conversation.notices["59RH"][0] in text
+    assert await store.pool.fetchval("SELECT count(*) FROM snapshots") == 2
+    assert await store.pool.fetchval("SELECT count(*) FROM outbox") == 1
+    await conversation.send("/status")
+    assert await store.pool.fetchval("SELECT count(*) FROM outbox") == 1
+    conversation.failed.add("59RH")
+    await store.pool.execute(
+        "UPDATE lines SET last_success_at=$1 WHERE code='59RH'", utcnow() - timedelta(seconds=11)
+    )
+    text = await conversation.send("/status")
+    assert "couldn’t refresh" in text and "unknown" in text
+    assert conversation.notices["59RH"][0] in text
+    await conversation.send("/status")  # Backoff is respected even on repeated requests.
+    assert await store.pool.fetchval("SELECT failure_count FROM lines") == 1
+    assert await store.pool.fetchval("SELECT count(*) FROM snapshots") == 2
 
 
 async def test_group_messages_do_not_create_subscribers(store, fixture_json):

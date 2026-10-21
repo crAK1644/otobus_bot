@@ -5,7 +5,8 @@ from iett_bot.schedule import ISTANBUL
 
 TEXT = {
     "en": {
-        "welcome": "Welcome! Choose a language, then add your bus lines with /lines.\n"
+        "welcome": "Welcome! Choose a language, then add your bus lines with /lines. "
+        "You can follow several lines. Use /status to check their announcements now.\n"
         "I forward İETT service notices when I detect them. Notices may be published late or "
         "disappear between checks. This is an independent community project.",
         "choose_line": "Send a line code or name (for example 59RH).",
@@ -16,6 +17,9 @@ TEXT = {
         "limit": "You can follow up to {limit} lines. Remove one first.",
         "removed": "Unfollowed {code}.",
         "lines": "Your lines (notification hours use Istanbul time):",
+        "multiple_lines": "Follow up to {limit} lines. Use ‘Add a line’ again for each one.",
+        "check_line": "Check {code}",
+        "check_now": "Check now",
         "no_lines": "You haven’t added any lines. Use /lines to get started.",
         "add": "Add a line",
         "remove": "Remove {code}",
@@ -43,7 +47,13 @@ TEXT = {
         "cancelled": "Cancelled.",
         "source_error": "İETT could not be checked right now. Try again shortly.",
         "unexpected_error": "Something went wrong. Please try again shortly.",
-        "status_heading": "Latest captured notices",
+        "status_heading": "Current announcements",
+        "checking": "Checking İETT announcements…",
+        "refresh_failed": "⚠ I couldn’t refresh this line right now; its current situation is "
+        "unknown. Any results below are from the last successful check.",
+        "notice_count": "Announcements in the latest successful check: {count}.",
+        "notice_delivery": "Alerts follow your notification hours and pause setting. "
+        "Use ‘Check now’ or /status to read the announcements here at any time.",
         "last_check": "Last successful check: {time}",
         "not_checked": "Waiting for the first successful check.",
         "stale": "⚠ Source data is stale; the current situation is unknown.",
@@ -59,13 +69,15 @@ TEXT = {
         "This is a monitoring update, not confirmation that bus service has resumed.\n"
         "Checked: {time} (Istanbul)",
         "help": "/lines — add or remove lines\n/settings — language and notification hours\n"
-        "/status — notices and last check\n/pause — pause alerts\n/resume — resume alerts\n"
+        "/status — check announcements for all your lines now\n"
+        "/status 59RH — check one of your lines\n/pause — pause alerts\n/resume — resume alerts\n"
         "/delete_me — delete your data\n/cancel — cancel the current step\n\n"
         "Alerts contain İETT’s original Turkish text. A notice disappearing does not mean "
         "service has resumed. Unchanged notices are not repeated daily.",
     },
     "tr": {
-        "welcome": "Hoş geldiniz! Dilinizi seçin, ardından /lines ile otobüs hatlarınızı ekleyin.\n"
+        "welcome": "Hoş geldiniz! Dilinizi seçin, ardından /lines ile otobüs hatlarınızı ekleyin. "
+        "Birden fazla hat takip edebilirsiniz. Güncel duyurular için /status kullanın.\n"
         "İETT hizmet duyurularını gördüğümde size iletirim. Duyurular geç yayımlanabilir veya "
         "kontroller arasında kaldırılabilir. Bu bağımsız bir topluluk projesidir.",
         "choose_line": "Hat kodu veya adı gönderin (örneğin 59RH).",
@@ -76,6 +88,10 @@ TEXT = {
         "limit": "En fazla {limit} hat takip edebilirsiniz. Önce bir hattı kaldırın.",
         "removed": "{code} takibi kaldırıldı.",
         "lines": "Hatlarınız (bildirim saatleri İstanbul saatidir):",
+        "multiple_lines": "En fazla {limit} hat takip edebilirsiniz. Her hat için yeniden "
+        "‘Hat ekle’ düğmesini kullanın.",
+        "check_line": "{code} kontrol et",
+        "check_now": "Şimdi kontrol et",
         "no_lines": "Henüz hat eklemediniz. /lines ile başlayabilirsiniz.",
         "add": "Hat ekle",
         "remove": "{code} kaldır",
@@ -103,7 +119,13 @@ TEXT = {
         "cancelled": "İptal edildi.",
         "source_error": "İETT şu anda kontrol edilemiyor. Biraz sonra tekrar deneyin.",
         "unexpected_error": "Bir sorun oluştu. Lütfen biraz sonra tekrar deneyin.",
-        "status_heading": "Son kaydedilen duyurular",
+        "status_heading": "Güncel duyurular",
+        "checking": "İETT duyuruları kontrol ediliyor…",
+        "refresh_failed": "⚠ Bu hat şu anda yeniden kontrol edilemedi; güncel durum bilinmiyor. "
+        "Aşağıdaki sonuçlar varsa son başarılı kontrolden alınmıştır.",
+        "notice_count": "Son başarılı kontroldeki duyuru sayısı: {count}.",
+        "notice_delivery": "Bildirimler seçtiğiniz saatlere ve duraklatma ayarınıza göre iletilir. "
+        "Duyuruları istediğiniz zaman okumak için ‘Şimdi kontrol et’ veya /status kullanın.",
         "last_check": "Son başarılı kontrol: {time}",
         "not_checked": "İlk başarılı kontrol bekleniyor.",
         "stale": "⚠ Kaynak verisi güncel değil; mevcut durum bilinmiyor.",
@@ -119,7 +141,8 @@ TEXT = {
         "durumudur; otobüs seferlerinin yeniden başladığı anlamına gelmez.\n"
         "Kontrol: {time} (İstanbul)",
         "help": "/lines — hat ekle veya kaldır\n/settings — dil ve bildirim saatleri\n"
-        "/status — duyurular ve son kontrol\n/pause — bildirimleri duraklat\n"
+        "/status — tüm hatlarınızın duyurularını şimdi kontrol et\n"
+        "/status 59RH — takip ettiğiniz bir hattı kontrol et\n/pause — bildirimleri duraklat\n"
         "/resume — bildirimleri aç\n/delete_me — verilerini sil\n/cancel — işlemi iptal et\n\n"
         "Duyurular İETT’nin özgün Türkçe metniyle iletilir. Bir duyurunun kaldırılması, "
         "seferin yeniden başladığı anlamına gelmez. Aynı duyuru her gün tekrar gönderilmez.",

@@ -39,7 +39,7 @@ async def runtime(settings: Settings) -> None:
                     beats.tick("scheduler")
                     monitor = Monitor(store, source, settings, beats)
                     dispatcher = Dispatcher()
-                    dispatcher.include_router(build_router(store, source, settings))
+                    dispatcher.include_router(build_router(store, source, settings, monitor))
                     runner = web.AppRunner(make_health_app(store, beats, settings), access_log=None)
                     await runner.setup()
                     await web.TCPSite(runner, settings.health_host, settings.health_port).start()

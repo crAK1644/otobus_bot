@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import timedelta
 
@@ -20,6 +21,7 @@ from iett_bot.domain import Line, normalize_code, utcnow
 from iett_bot.i18n import local_time, split_text, tr
 from iett_bot.iett import IettClient, SourceError
 from iett_bot.schedule import Schedule
+from iett_bot.worker import Heartbeats, Monitor
 
 log = logging.getLogger(__name__)
 
@@ -65,7 +67,10 @@ async def answer_parts(message: Message, text: str, markup=None) -> None:
         )
 
 
-def build_router(store: Store, source: IettClient, settings: Settings) -> Router:
+def build_router(
+    store: Store, source: IettClient, settings: Settings, monitor: Monitor | None = None
+) -> Router:
+    monitor = monitor or Monitor(store, source, settings, Heartbeats())
     router = Router(name="subscriptions")
     router.message.filter(F.chat.type == "private")
     router.callback_query.filter(F.message.chat.type == "private")
@@ -76,6 +81,8 @@ def build_router(store: Store, source: IettClient, settings: Settings) -> Router
         lang = user["language"]
         subscriptions = await store.subscriptions(user["chat_id"])
         text = tr(lang, "settings" if with_languages else "lines")
+        if not with_languages:
+            text += "\n" + tr(lang, "multiple_lines", limit=settings.max_subscriptions)
         rows = languages() if with_languages else []
         if not subscriptions:
             text += "\n\n" + tr(lang, "no_lines")
@@ -84,6 +91,7 @@ def build_router(store: Store, source: IettClient, settings: Settings) -> Router
             text += f"\n\n{code} — {sub['name']}\n{Schedule.from_json(sub['schedule']).describe()}"
             rows.append(
                 [
+                    (tr(lang, "check_line", code=code), f"check:{code}"),
                     (tr(lang, "hours", code=code), f"hours:{code}"),
                     (tr(lang, "remove", code=code), f"remove:{code}"),
                 ]
@@ -177,13 +185,30 @@ def build_router(store: Store, source: IettClient, settings: Settings) -> Router
             ),
         )
 
-    @router.message(Command("status"))
-    async def status(message: Message, user: dict) -> None:
+    async def current_status(user: dict, code: str | None = None, summary: bool = False) -> str:
         lang = user["language"]
         subs = await store.subscriptions(user["chat_id"])
         if not subs:
-            await message.answer(tr(lang, "no_lines"))
-            return
+            return tr(lang, "no_lines")
+        if code:
+            try:
+                code = normalize_code(code)
+            except ValueError:
+                return tr(lang, "not_subscribed")
+            subs = [sub for sub in subs if sub["line_code"] == code]
+            if not subs:
+                return tr(lang, "not_subscribed")
+        checks = dict(
+            zip(
+                [sub["line_code"] for sub in subs],
+                await asyncio.gather(*(monitor.refresh(sub["line_code"]) for sub in subs)),
+                strict=True,
+            )
+        )
+        # Refresh timestamps after capturing and persisting the source responses.
+        subs = [
+            sub for sub in await store.subscriptions(user["chat_id"]) if sub["line_code"] in checks
+        ]
         now = utcnow()
         text = tr(lang, "status_heading")
         if user["paused"]:
@@ -191,6 +216,8 @@ def build_router(store: Store, source: IettClient, settings: Settings) -> Router
         for sub in subs:
             line = Line(sub["line_code"], sub["name"])
             text += f"\n\n🚍 {line.code} — {line.name}\n"
+            if not checks[line.code]:
+                text += tr(lang, "refresh_failed") + "\n"
             last_check = sub["last_success_at"]
             if last_check:
                 text += tr(lang, "last_check", time=local_time(last_check))
@@ -200,13 +227,34 @@ def build_router(store: Store, source: IettClient, settings: Settings) -> Router
                 text += tr(lang, "not_checked")
                 text += "\n" + tr(lang, "stale")
             notices = await store.current_notices(line.code)
-            for notice in notices:
-                text += "\n\n" + notice["original_text"]
-                text += "\n" + tr(lang, "detected", time=local_time(notice["first_seen_at"]))
+            if notices:
+                text += "\n" + tr(lang, "notice_count", count=len(notices))
+                if summary:
+                    text += "\n" + tr(lang, "notice_delivery")
+                else:
+                    for notice in notices:
+                        text += "\n\n" + notice["original_text"]
+                        text += "\n" + tr(
+                            lang, "detected", time=local_time(notice["first_seen_at"])
+                        )
             if not notices and last_check:
                 text += "\n" + tr(lang, "no_notices")
             text += "\n" + line.url
-        await answer_parts(message, text)
+        return text
+
+    @router.message(Command("status"))
+    async def status(message: Message, user: dict, command: CommandObject) -> None:
+        await message.answer(tr(user["language"], "checking"))
+        await answer_parts(message, await current_status(user, command.args))
+
+    @router.callback_query(F.data.startswith("check:"))
+    async def check_line(callback: CallbackQuery, user: dict) -> None:
+        await callback.answer(tr(user["language"], "checking"))
+        text = await current_status(user, callback.data.split(":", 1)[1])
+        for part in split_text(text):
+            await callback.bot.send_message(
+                user["chat_id"], part, link_preview_options=LinkPreviewOptions(is_disabled=True)
+            )
 
     @router.callback_query(F.data.startswith("lang:"))
     async def language(callback: CallbackQuery, user: dict) -> None:
@@ -248,6 +296,15 @@ def build_router(store: Store, source: IettClient, settings: Settings) -> Router
         await callback.bot.send_message(
             user["chat_id"],
             tr(lang, "subscribed" if added else "already_subscribed", code=line.code),
+        )
+        text = await current_status(user, line.code, summary=True)
+        await callback.bot.send_message(
+            user["chat_id"],
+            text,
+            reply_markup=keyboard(
+                [[(tr(lang, "check_now"), f"check:{line.code}"), (tr(lang, "add"), "add")]]
+            ),
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
 
     @router.callback_query(F.data.startswith("remove:"))
