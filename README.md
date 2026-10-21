@@ -1,4 +1,6 @@
-# İETT Telegram Alerts
+# IETT Notification
+
+<img src="assets/profile.jpg" alt="Yellow bus with a notification bell" width="128" height="128">
 
 A shared, open source Telegram bot that watches temporary service announcements on İETT line pages.
 Subscribe to **59RH** or any other supported line and receive new cancellation, delay, diversion,
@@ -7,7 +9,7 @@ closure, and timetable notices. Controls are available in Turkish and English; a
 
 ## Use the hosted bot
 
-Open [@cmp_visitor_bot on Telegram](https://t.me/cmp_visitor_bot), press **Start**, and use `/lines`
+Open [@iett_notification_bot on Telegram](https://t.me/iett_notification_bot), press **Start**, and use `/lines`
 to follow your bus lines. For the 59RH pilot, send `/lines 59RH` and select the matching result.
 You can follow up to 20 lines: use `/lines` → **Add a line** for each additional line.
 After following, the bot immediately checks and replies with the number of announcements or says
@@ -16,10 +18,19 @@ Use `/settings` to change language or notification hours. Use `/status` to check
 all your lines now, `/status 59RH` for one followed line, or its **Check now** button to read the full
 announcements, even while automatic alerts are paused or outside your notification hours.
 The hosted bot runs on an always-on server; subscribers do not need to install or run this code.
+The former `@cmp_visitor_bot` points visitors to the new bot. Existing followers should press **Start**
+in the new bot; their saved lines and notification hours remain in the same database.
 
 The bot is an independent community project, not an official İETT service. It can only forward notices
 İETT publishes. A notice published and removed between checks can be missed. Its **first detected**
 timestamp is not its publication time. A disappearing notice never means a bus has been reinstated.
+
+When moving a deployment to a replacement bot, put the replacement token in `BOT_TOKEN` and the
+former token in the optional `LEGACY_BOT_TOKEN`, both in the private `.env` file. The same process
+keeps the former bot answering private messages and old buttons with a link to the replacement,
+while one shared monitor and delivery worker serve the replacement. Keep the existing database
+to preserve settings and history. Each follower must press **Start** in the replacement bot before
+it can send them alerts. Leave `LEGACY_BOT_TOKEN` blank for a deployment with only one bot.
 
 ## Run with Docker Compose
 

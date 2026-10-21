@@ -15,6 +15,7 @@ from iett_bot.db import Store
 from iett_bot.delivery import DeliveryWorker
 from iett_bot.health import make_health_app
 from iett_bot.iett import IettClient, http_client
+from iett_bot.redirect import build_redirect_router
 from iett_bot.worker import Heartbeats, Monitor
 
 log = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ async def runtime(settings: Settings) -> None:
     settings.require_runtime()
     store = await Store.connect(settings.database_url.get_secret_value())
     bot = Bot(settings.bot_token.get_secret_value())
+    legacy_bot = None
     runner = None
     tasks = []
     try:
@@ -101,6 +103,24 @@ async def runtime(settings: Settings) -> None:
                             name="telegram",
                         ),
                     ]
+                    if settings.legacy_bot_token.get_secret_value():
+                        legacy_bot = Bot(settings.legacy_bot_token.get_secret_value())
+                        identity = await bot.get_me()
+                        legacy_dispatcher = Dispatcher()
+                        legacy_dispatcher.include_router(build_redirect_router(identity.username))
+                        await legacy_bot.delete_webhook(drop_pending_updates=False)
+                        tasks.append(
+                            asyncio.create_task(
+                                legacy_dispatcher.start_polling(
+                                    legacy_bot,
+                                    allowed_updates=legacy_dispatcher.resolve_used_update_types(),
+                                    close_bot_session=False,
+                                    handle_signals=False,
+                                    tasks_concurrency_limit=8,
+                                ),
+                                name="former-telegram-bot",
+                            )
+                        )
                     done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                     for task in done:
                         await task  # Fail the process if a background worker fails.
@@ -114,6 +134,8 @@ async def runtime(settings: Settings) -> None:
         if runner:
             await runner.cleanup()
         await bot.session.close()
+        if legacy_bot:
+            await legacy_bot.session.close()
         await store.close()
 
 

@@ -47,6 +47,9 @@ TEXT = {
         "cancelled": "Cancelled.",
         "source_error": "İETT could not be checked right now. Try again shortly.",
         "unexpected_error": "Something went wrong. Please try again shortly.",
+        "bot_moved": "IETT Notification has moved to {url}.\n"
+        "Open the new bot and tap Start. Your saved lines and notification hours are kept.",
+        "open_new_bot": "Open new bot",
         "status_heading": "Current announcements",
         "checking": "Checking İETT announcements…",
         "refresh_failed": "⚠ I couldn’t refresh this line right now; its current situation is "
@@ -119,6 +122,10 @@ TEXT = {
         "cancelled": "İptal edildi.",
         "source_error": "İETT şu anda kontrol edilemiyor. Biraz sonra tekrar deneyin.",
         "unexpected_error": "Bir sorun oluştu. Lütfen biraz sonra tekrar deneyin.",
+        "bot_moved": "IETT Notification yeni adresine taşındı: {url}\n"
+        "Yeni botu açıp Başlat düğmesine basın. "
+        "Kayıtlı hatlarınız ve bildirim saatleriniz korunur.",
+        "open_new_bot": "Yeni botu aç",
         "status_heading": "Güncel duyurular",
         "checking": "İETT duyuruları kontrol ediliyor…",
         "refresh_failed": "⚠ Bu hat şu anda yeniden kontrol edilemedi; güncel durum bilinmiyor. "
