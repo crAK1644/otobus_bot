@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: iett
+      POSTGRES_DB: iett
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iett -d iett"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  bot:
+    build: .
+    init: true
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://iett:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/iett
+      HEALTH_HOST: 0.0.0.0
+      HEALTH_PORT: "8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+volumes:
+  postgres_data:
