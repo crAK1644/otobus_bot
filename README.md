@@ -5,6 +5,13 @@ Subscribe to **59RH** or any other supported line and receive new cancellation, 
 closure, and timetable notices. Controls are available in Turkish and English; announcements retain
 İETT’s original Turkish wording.
 
+## Use the hosted bot
+
+Open [@cmp_visitor_bot on Telegram](https://t.me/cmp_visitor_bot), press **Start**, and use `/lines`
+to follow your bus lines. For the 59RH pilot, send `/lines 59RH` and select the matching result.
+Use `/settings` to change language or notification hours and `/status` to see source freshness.
+The hosted bot runs on an always-on server; subscribers do not need to install or run this code.
+
 The bot is an independent community project, not an official İETT service. It can only forward notices
 İETT publishes. A notice published and removed between checks can be missed. Its **first detected**
 timestamp is not its publication time. A disappearing notice never means a bus has been reinstated.
