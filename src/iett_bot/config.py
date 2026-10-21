@@ -6,7 +6,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     bot_token: SecretStr = SecretStr("")
-    legacy_bot_token: SecretStr = SecretStr("")
     healthcheck_ping_url: SecretStr = SecretStr("")
     database_url: SecretStr = SecretStr("")
     poll_interval_seconds: float = Field(default=60, ge=10)
@@ -27,5 +26,3 @@ class Settings(BaseSettings):
             )
         if not self.database_url.get_secret_value():
             raise ValueError("Set DATABASE_URL to a PostgreSQL connection URL.")
-        if self.legacy_bot_token.get_secret_value() == self.bot_token.get_secret_value():
-            raise ValueError("LEGACY_BOT_TOKEN must belong to a different bot than BOT_TOKEN.")

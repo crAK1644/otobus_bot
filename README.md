@@ -21,19 +21,14 @@ Share a line with a one-tap link: `https://t.me/iett_notification_bot?start=59RH
 follows that line as soon as the person presses **Start** (the bot shows each line's link after you
 follow it). Line codes with Turkish letters use an encoded form of the same link.
 The hosted bot runs on an always-on server; subscribers do not need to install or run this code.
-The former `@cmp_visitor_bot` points visitors to the new bot. Existing followers should press **Start**
-in the new bot; their saved lines and notification hours remain in the same database.
 
 The bot is an independent community project, not an official İETT service. It can only forward notices
 İETT publishes. A notice published and removed between checks can be missed. Its **first detected**
 timestamp is not its publication time. A disappearing notice never means a bus has been reinstated.
 
-When moving a deployment to a replacement bot, put the replacement token in `BOT_TOKEN` and the
-former token in the optional `LEGACY_BOT_TOKEN`, both in the private `.env` file. The same process
-keeps the former bot answering private messages and old buttons with a link to the replacement,
-while one shared monitor and delivery worker serve the replacement. Keep the existing database
-to preserve settings and history. Each follower must press **Start** in the replacement bot before
-it can send them alerts. Leave `LEGACY_BOT_TOKEN` blank for a deployment with only one bot.
+The hosted service uses `@iett_notification_bot` for commands, service announcements and operator
+monitoring alerts. Set its token in `BOT_TOKEN` and keep the existing database when updating the
+deployment to preserve subscriptions, notification settings and captured announcements.
 
 ## Run with Docker Compose
 
