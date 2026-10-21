@@ -25,6 +25,11 @@ outside the VM. Losing every copy of the password makes the encrypted backups un
 Recovery files belong in ignored `backups/`, never in Git. Server replacement requires restoring the
 database and separately recreating the bot's `.env` from its private recovery copy.
 
+The Frankfurt deployment uses `AWS_DEFAULT_REGION=us-east-1` for S3 request signing against its
+Frankfurt compatibility endpoint. This changes the signing scope, not the physical storage region.
+Verify the correct signing setting for your provider before scheduling backups. New Oracle
+identities/keys can also take time to propagate; do not broaden the bucket policy to solve that delay.
+
 Run `sudo ops/backup.sh` and `sudo ops/restore-drill.sh` once before installing the supplied cron
 file in `/etc/cron.d/iett-backup` and logrotate file in `/etc/logrotate.d/iett-backup`. The cron file
 assumes `/home/ubuntu/apps/otobus_bot` and UTC. It schedules a daily backup at 03:17 Istanbul time

@@ -1,7 +1,7 @@
 /var/log/iett-backup.log {
     weekly
     rotate 8
-    size 1M
+    maxsize 1M
     compress
     missingok
     notifempty
