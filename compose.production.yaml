@@ -1,0 +1,21 @@
+# Optional limits for a server shared with other applications.
+# docker compose -p iett-alerts -f compose.yaml -f compose.production.yaml up -d --build
+services:
+  bot:
+    cpus: "0.50"
+    mem_limit: 512m
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  db:
+    cpus: "0.50"
+    mem_limit: 768m
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

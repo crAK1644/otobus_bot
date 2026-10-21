@@ -28,6 +28,17 @@ instances sharing this database; Telegram also requires a single long-polling re
 No public webhook, domain, or inbound port is required. The database uses a persistent named volume
 and is not published to the network. Migrations run automatically on startup.
 
+For a shared always-on server, use the optional resource limits and bounded container logs:
+
+```sh
+docker compose -p iett-alerts -f compose.yaml -f compose.production.yaml up -d --build
+```
+
+This caps the bot at 512 MB of memory and the database at 768 MB, with half a CPU each. Both services
+use a private Docker network and publish no host ports. Add the same `-p` and `-f` options to later
+Compose commands for this deployment. Database history still grows with the number of monitored
+lines; monitor available disk space and keep off-server backups.
+
 ## Commands
 
 | Command | Purpose |
