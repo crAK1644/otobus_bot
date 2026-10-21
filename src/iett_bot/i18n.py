@@ -24,7 +24,17 @@ TEXT = {
         "no_lines": "You haven’t added any lines. Use /lines to get started.",
         "add": "Add a line",
         "remove": "Remove {code}",
-        "hours": "Hours · {code}",
+        "hours": "Notify hours · {code}",
+        "departures": "Departures · {code}",
+        "departures_prompt": "Which departures of {code} matter to you? Pick a direction, then "
+        "the hours you ride. Notices about a specific departure at other hours are skipped; "
+        "line-wide notices and ones I can’t read always arrive. Nothing picked = everything.",
+        "departures_all": "Departures: all",
+        "departures_some": "Departures: {picks}",
+        "all_departures": "All departures",
+        "any_direction": "Any direction",
+        "stale_buttons": "These buttons are out of date. Open Departures again from /lines.",
+        "trips": "{count} trips",
         "settings": "Choose your language below. To set notification hours, choose a line.\n"
         "Monitoring continues around the clock, including while notifications are paused.",
         "language_set": "Language saved: English.",
@@ -117,7 +127,18 @@ TEXT = {
         "no_lines": "Henüz hat eklemediniz. /lines ile başlayabilirsiniz.",
         "add": "Hat ekle",
         "remove": "{code} kaldır",
-        "hours": "Saatler · {code}",
+        "hours": "Bildirim saatleri · {code}",
+        "departures": "Kalkışlar · {code}",
+        "departures_prompt": "{code} için hangi kalkışlar sizi ilgilendiriyor? Bir yön seçin, "
+        "ardından bindiğiniz saatleri işaretleyin. Başka saatlerdeki belirli bir kalkışa ait "
+        "duyurular atlanır; hat geneli ve anlayamadığım duyurular her zaman gelir. "
+        "Hiçbiri seçili değilse hepsi gelir.",
+        "departures_all": "Kalkışlar: hepsi",
+        "departures_some": "Kalkışlar: {picks}",
+        "all_departures": "Tüm kalkışlar",
+        "any_direction": "Her yön",
+        "stale_buttons": "Bu düğmeler eskidi. /lines içinden Kalkışlar'ı yeniden açın.",
+        "trips": "{count} sefer",
         "settings": "Aşağıdan dilinizi seçin. Bildirim saatleri için bir hat seçin.\n"
         "Bildirimler duraklatıldığında da duyurular gün boyu izlenip kaydedilir.",
         "language_set": "Dil kaydedildi: Türkçe.",

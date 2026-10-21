@@ -1,11 +1,13 @@
 import asyncio
+import html
+import re
 import time
 from collections import OrderedDict
 from email.utils import parsedate_to_datetime
 
 import httpx
 
-from iett_bot.domain import Line, Snapshot, fingerprint, normalize_code, utcnow
+from iett_bot.domain import Line, Snapshot, fingerprint, normalize_code, turkish_upper, utcnow
 
 
 class SourceError(Exception):
@@ -36,11 +38,34 @@ def parse_notices(payload: object) -> tuple[str, ...]:
     return tuple(unique.values())
 
 
+def parse_timetable(page: str) -> dict[str, tuple[str, ...]]:
+    """Planned departures per terminal from the line page's timetable HTML.
+
+    Weekday, Saturday and Sunday columns are merged. Anything that is not a plain
+    "<TERMINAL> KALKIŞ" table (for example frequency-only metrobus lines) yields {}.
+    """
+    result: dict[str, tuple[str, ...]] = {}
+    for table in page.split('<table class="line-table"')[1:]:
+        header = re.search(r"routedetailstartend[^>]*>(.*?)</th>", table, re.S)
+        if not header:
+            continue
+        name = turkish_upper(html.unescape(re.sub(r"<[^>]+>", "", header.group(1))))
+        name = name.removesuffix("KALKIŞ").strip()
+        times = sorted(set(re.findall(r"<td[^>]*>\s*(\d{2}:\d{2})\s*</td>", table)))
+        if name and times:
+            result[name] = tuple(times)
+    return result
+
+
 class IettClient:
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
         self._search_cache: OrderedDict[str, tuple[float, list[Line]]] = OrderedDict()
         self._search_lock = asyncio.Lock()
+        self._timetable_cache: OrderedDict[str, tuple[float, dict[str, tuple[str, ...]]]] = (
+            OrderedDict()
+        )
+        self._timetable_lock = asyncio.Lock()
 
     async def _get(self, path: str, params: dict) -> object:
         try:
@@ -87,6 +112,41 @@ class IettClient:
             self._search_cache[query.casefold()] = (time.monotonic(), result)
             if len(self._search_cache) > 256:
                 self._search_cache.popitem(last=False)
+            return result
+
+    async def timetable(self, line: Line) -> dict[str, tuple[str, ...]]:
+        """Planned departures per terminal, or {} when unavailable.
+
+        A missing timetable only costs the rider the hour labels, so failures never raise.
+        Cached for a day; an empty or failed answer is retried after ten minutes.
+        """
+        async with self._timetable_lock:
+            cached = self._timetable_cache.get(line.code)
+            if cached and time.monotonic() < cached[0]:
+                return cached[1]
+            start, _, end = line.name.partition(" - ")
+            try:
+                response = await self.client.post(
+                    "/tr/RouteStation/GetScheduledDepartureTimes",
+                    data={
+                        "rstart": start,
+                        "rend": end,
+                        "timeschule": "",
+                        "freq": "",
+                        "lngid": 1,
+                        "hCode": line.code,
+                    },
+                )
+                response.raise_for_status()
+                result = parse_timetable(response.text)
+            except httpx.HTTPError:
+                result = {}
+            self._timetable_cache[line.code] = (
+                time.monotonic() + (86400 if result else 600),
+                result,
+            )
+            if len(self._timetable_cache) > 256:
+                self._timetable_cache.popitem(last=False)
             return result
 
     async def resolve(self, code: str) -> Line | None:

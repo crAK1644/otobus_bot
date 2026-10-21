@@ -1,10 +1,17 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
 import httpx
 import pytest
 
-from iett_bot.domain import fingerprint, normalize_code
-from iett_bot.iett import IettClient, SourceError, parse_notices, retry_after_seconds
+from iett_bot.domain import Line, fingerprint, normalize_code
+from iett_bot.iett import (
+    IettClient,
+    SourceError,
+    parse_notices,
+    parse_timetable,
+    retry_after_seconds,
+)
 
 
 def test_split_deduplicate_and_preserve_original(fixture_json):
@@ -81,3 +88,35 @@ def test_http_date_retry_after(monkeypatch):
     monkeypatch.setattr("iett_bot.iett.utcnow", lambda: now)
     assert retry_after_seconds("Wed, 21 Oct 2026 07:02:00 GMT") == 120
     assert retry_after_seconds("not a date") == 60
+
+
+def test_timetable_parse_merges_columns_per_terminal():
+    page = (Path(__file__).parent / "fixtures" / "timetable_59rh.html").read_text(encoding="utf-8")
+    parsed = parse_timetable(page)
+    assert list(parsed) == ["RUMELİ HİSARÜSTÜ", "HACIOSMAN METRO"]
+    assert parsed["HACIOSMAN METRO"][:2] == ("06:30", "07:00")
+    assert all(list(times) == sorted(set(times)) for times in parsed.values())
+    assert parse_timetable("<html>nothing</html>") == {}
+
+
+async def test_timetable_is_cached_and_failures_are_empty():
+    page = (Path(__file__).parent / "fixtures" / "timetable_59rh.html").read_text(encoding="utf-8")
+    calls = []
+
+    def respond(request):
+        calls.append(request)
+        return httpx.Response(200, text=page) if len(calls) == 1 else httpx.Response(503)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(respond), base_url="https://iett.istanbul"
+    ) as client:
+        source = IettClient(client)
+        line = Line("59RH", "RUMELİ HİSARÜSTÜ - HACIOSMAN METRO")
+        assert len(await source.timetable(line)) == 2
+        assert len(await source.timetable(line)) == 2
+        assert len(calls) == 1
+        assert b"rstart=RUMEL" in calls[0].content
+        broken = Line("43R", "A - B")
+        assert await source.timetable(broken) == {}
+        assert await source.timetable(broken) == {}
+        assert len(calls) == 2

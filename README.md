@@ -82,7 +82,7 @@ lines; monitor available disk space and keep off-server backups.
 | `/cancel` | Cancel the current interaction |
 | `/help` | Show command help |
 
-Every line defaults to every day, all day. For weekday commuting, use the **Hours** button or:
+Every line defaults to every day, all day. For weekday commuting, use the **Notify hours** button or:
 
 ```text
 /settings 59RH 1,2,3,4,5 07:00-10:00,15:00-19:00
@@ -98,6 +98,16 @@ only notices still present in a fresh successful response are newly queued. Aler
 are retained even if İETT removes their notice. Delivery rechecks notification hours and pause status.
 Unchanged announcements are not repeated daily. New subscribers receive current notices within their
 allowed hours. An edited announcement is delivered as new content.
+
+### Departure picks
+
+Some notices name one trip, for example "HACIOSMAN METRO kalkışlı 07:50 seferi iptal". Use the
+**Departures** button on `/lines` to pick a direction and the hours you ride (hours come from the
+line's İETT timetable; without one, all 24 are offered). A notice is skipped only when every
+departure it names is from a direction you narrowed, at an hour you did not pick. Line-wide notices,
+notices the parser does not fully understand, and directions you left alone always arrive, and
+`/status` still shows everything. Parsing is rule-based (`parse_departures` in `domain.py`), with
+no AI. Nothing picked means every departure.
 
 ## How capture works
 
@@ -258,7 +268,7 @@ volume deletes the database; ordinary container rebuilds preserve it.
 ## Privacy, retention, and configuration
 
 The bot operates in private chats. It stores Telegram chat/user ID, language, pause/block state,
-selected lines, notification hours, and delivery receipts. It does not require a phone number,
+selected lines, notification hours, departure picks, and delivery receipts. It does not require a phone number,
 location, school, or travel destination. `/delete_me` removes personal records and queued alerts;
 shared public source history remains. A message already in flight cannot be recalled. Operators
 must manage access to the database and backups; expired backup copies should be removed on a defined

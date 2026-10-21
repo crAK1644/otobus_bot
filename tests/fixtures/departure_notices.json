@@ -1,0 +1,172 @@
+[
+ {
+  "line": "11",
+  "text": "YENİDOĞAN PERONLAR kalkışlı 15:55 seferi yapılamayacaktır.",
+  "departures": {
+   "YENİDOĞAN PERONLAR": [
+    15
+   ]
+  }
+ },
+ {
+  "line": "131SB",
+  "text": "SULTANBEYLİ PERONLAR kalkışlı 15:15 seferi 15:41 hareketle 23. (DUMLUPINAR CADDESI) - 54. (BATTALGAZİ MAHALLESİ) duraklar arasında çalışacak şekilde düzenlenmiştir.",
+  "departures": {
+   "SULTANBEYLİ PERONLAR": [
+    15
+   ]
+  }
+ },
+ {
+  "line": "131T",
+  "text": "Trafik yoğunluğu ve işletme sebepleri ile ATATÜRK MAHALLESİ PERONLAR durağından başlayacak 16:20 seferi 16:35, 16:30 seferi 16:45, 16:40 seferi 16:55, 16:50 seferi 17:05 saatinde gerçekleşecektir.",
+  "departures": {
+   "ATATÜRK MAHALLESİ PERONLAR": [
+    16
+   ]
+  }
+ },
+ {
+  "line": "133G",
+  "text": "Trafik yoğunluğu ve işletme sebepleri ile GÜLENSU MAHALLESİ durağından başlayacak 16:15 seferi 16:30 saatinde gerçekleşecektir.",
+  "departures": {
+   "GÜLENSU MAHALLESİ": [
+    16
+   ]
+  }
+ },
+ {
+  "line": "141M",
+  "text": "MECİDİYEKÖY METROBÜS kalkışlı 17:30 seferi, KANUNİ SULTAN SÜLEYMAN kalkışlı 15:30 seferi yapılamayacaktır.",
+  "departures": {
+   "MECİDİYEKÖY METROBÜS": [
+    17
+   ],
+   "KANUNİ SULTAN SÜLEYMAN": [
+    15
+   ]
+  }
+ },
+ {
+  "line": "153",
+  "text": "SARIYER kalkışlı 17:05, 17:50 seferi, BAHÇEKÖY kalkışlı 16:20, 17:05 seferi yapılamayacaktır.",
+  "departures": {
+   "SARIYER": [
+    17
+   ],
+   "BAHÇEKÖY": [
+    16,
+    17
+   ]
+  }
+ },
+ {
+  "line": "41A",
+  "text": "AYAZAĞA kalkışlı 15:20, 17:35 seferi, 4.LEVENT METRO kalkışlı 16:25 seferi yapılamayacaktır.",
+  "departures": {
+   "AYAZAĞA": [
+    15,
+    17
+   ],
+   "4.LEVENT METRO": [
+    16
+   ]
+  }
+ },
+ {
+  "line": "50E",
+  "text": "ALİBEYKÖY METRO kalkışlı 15:20, 15:28, 15:36, 15:44, 15:52 seferi yapılamayacaktır.",
+  "departures": {
+   "ALİBEYKÖY METRO": [
+    15
+   ]
+  }
+ },
+ {
+  "line": "50E",
+  "text": "Trafik durumu sebebiyle ALİBEYKÖY METRO durağından başlayacak 16:48 seferi 16:20 (28 dakika erken), 16:56 seferi 16:40 (16 dakika erken) olarak hareket edecektir.",
+  "departures": {
+   "ALİBEYKÖY METRO": [
+    16
+   ]
+  }
+ },
+ {
+  "line": "50N",
+  "text": "ALİBEYKÖY METRO kalkışlı 15:15, 15:25, 15:32, 15:41, 15:52, 16:03, 16:12, 16:20, 16:28, 16:36, 16:44, 16:52, 17:00 seferi yapılamayacaktır.",
+  "departures": {
+   "ALİBEYKÖY METRO": [
+    15,
+    16,
+    17
+   ]
+  }
+ },
+ {
+  "line": "TM4",
+  "text": "ALİBEYKÖY METRO kalkışlı 15:22, 16:40, 16:52, 17:04, 17:16, 17:28, 17:50, 18:01, 18:12, 18:23 seferi, KÖPRÜBAŞI MAHALLESİ kalkışlı 15:48, 16:00, 16:12, 16:24, 16:35, 16:45, 16:55, 17:05, 17:15, 17:25, 17:35 seferi yapılamayacaktır.",
+  "departures": {
+   "ALİBEYKÖY METRO": [
+    15,
+    16,
+    17,
+    18
+   ],
+   "KÖPRÜBAŞI MAHALLESİ": [
+    15,
+    16,
+    17
+   ]
+  }
+ },
+ {
+  "line": "11A",
+  "text": "Yoğun Trafik nedeniyle araçlarımız ŞEHİT EROL OLÇOK kalkışlı seferlerine 30 dakika ve üzeri rötarlı hareket etmektedir. (15:34) Trafik yoğunluğu ve işletme sebepleri ile ŞEHİT EROL OLÇOK durağından başlayacak 16:10 seferi 16:40, 16:40 seferi 17:05 saatinde gerçekleşecektir.",
+  "departures": null
+ },
+ {
+  "line": "132YS",
+  "text": "Altyapı Çalışması nedeniyle güzergah değişikliği yapılmıştır. Hattımızın otobüsleri SULTANBEYLİPERONLAR yönüne doğru SULTANBEYLİ İLÇE EMNİYET MÜDÜRLÜĞÜ durağından güzergah dışına çıkarak BÜLBÜL SOKAK Durağından güzergaha girecektir. (11:51) Trafik yoğunluğu ve işletme sebepleri ile SULTANBEYLİ PERONLAR durağından başlayacak 16:15 seferi 16:30, 16:30 seferi 16:50, 16:45 seferi 17:00 saatinde gerçekleşecektir.",
+  "departures": null
+ },
+ {
+  "line": "142A",
+  "text": "BOĞAZKÖY SON DURAK kalkışlı 16:10 seferi, İ.Ü. CERRAHPAŞA AVC. KAMP. kalkışlı 17:30 seferi yapılamayacaktır.",
+  "departures": null
+ },
+ {
+  "line": "142B",
+  "text": "Güney Yanyol (Altınşehire iniş Yolu) üzerindeki Aşırı Trafik nedeniyle güzergah değişikliği yapılmıştır.  Hattımızın otobüsleri Küçükçekmece - Tahtakale yönüne doğru Bayramtepe Üst Geçit durağından güzergahtan çıkarak Şehit Haki Aras durağından güzergaha girecektir. (12:01) Trafik yoğunluğu ve işletme sebepleri ile KANUNİ SULTAN SÜLEYMAN durağından başlayacak 16:10 seferi 16:22 saatinde gerçekleşecektir.",
+  "departures": null
+ },
+ {
+  "line": "14KS",
+  "text": "Yoğun Trafik nedeniyle araçlarımız her iki yönde seferlerine 30 dakika ve üzeri rötarlı hareket etmektedir.\n (16:04) Trafik yoğunluğu ve işletme sebepleri ile KOZYATAĞI METRO durağından başlayacak 16:20 seferi 16:40, 16:40 seferi 16:55 saatinde gerçekleşecektir.",
+  "departures": null
+ },
+ {
+  "line": "27E",
+  "text": "15 Temmuz Şehitler Köprüsü bağlantı trafiği nedeniyle, otobüslerimiz 16.30 ? 21.00 saatleri arasında Levent?ten Beşiktaş istikametine gidiş yönünde Zincirlikuyu durağına uğramayacaktır. (16:08)",
+  "departures": null
+ },
+ {
+  "line": "42T",
+  "text": "Yoğun Trafik nedeniyle araçlarımız AHMETCELALETTİNPAŞACAMİ kalkışlı seferlerine 20 dk  dakika ve üzeri rötarlı hareket etmektedir. (16:15) Trafik yoğunluğu ve işletme sebepleri ile AHMET CELALETTİN PAŞA CAMİ durağından başlayacak 16:25 seferi 16:40 saatinde gerçekleşecektir.",
+  "departures": null
+ },
+ {
+  "line": "50D",
+  "text": "Yoğun Trafik nedeniyle araçlarımız ALİBEYKÖYMETRO kalkışlı seferlerine 20 dakika ve üzeri rötarlı hareket etmektedir. (15:55) Trafik yoğunluğu ve işletme sebepleri ile ALİBEYKÖY METRO durağından başlayacak 16:10 seferi 16:30, 16:20 seferi 16:40, 16:30 seferi 16:50, 16:40 seferi 17:00, 16:50 seferi 17:10 saatinde gerçekleşecektir.",
+  "departures": null
+ },
+ {
+  "line": "79G",
+  "text": "Güney Yanyol (Altınşehire iniş yolu) üzerindeki Aşırı Trafik nedeniyle güzergah değişikliği yapılmıştır. Hattımızın otobüsleri Küçükçekmece - Tahtakale yönüne doğru Osmanlı Caddesi durağından güzergahtan çıkarak Şehit Haki Aras durağından güzergaha girecektir. (12:08) Trafik yoğunluğu ve işletme sebepleri ile KAYAŞEHİR durağından başlayacak 16:10 seferi 16:30 saatinde gerçekleşecektir.",
+  "departures": null
+ },
+ {
+  "line": "HT29",
+  "text": "KIRAÇ YOLU kalkışlı 16:10 seferi, İ.Ü. CERRAHPAŞA AVC. KAMP. kalkışlı 17:45, 18:15 seferi yapılamayacaktır.",
+  "departures": null
+ }
+]

@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import httpx
 import pytest
@@ -8,7 +9,7 @@ from aiogram.exceptions import TelegramNetworkError
 from aiogram.methods import GetMe, SendMessage
 from aiogram.types import CallbackQuery, Chat, Message, Update, User
 
-from iett_bot.bot import build_router, start_payload
+from iett_bot.bot import build_router, start_payload, terminal_id
 from iett_bot.config import Settings
 from iett_bot.domain import utcnow
 from iett_bot.iett import IettClient
@@ -142,9 +143,14 @@ class Conversation:
         self.chat = Chat(id=42, type="private")
         self.notices = {"59RH": [], "43R": ["TEST: 43R güzergâh değişikliği."]}
         self.failed = set()
+        self.timetable = None
         self.update_id = 0
 
     def respond(self, request):
+        if request.url.path.endswith("GetScheduledDepartureTimes"):
+            return (
+                httpx.Response(200, text=self.timetable) if self.timetable else httpx.Response(503)
+            )
         if request.url.path.endswith("GetSearchItems"):
             code = request.url.params["key"]
             return httpx.Response(
@@ -181,7 +187,7 @@ class Conversation:
         else:
             update = Update(update_id=self.update_id, message=message)
         await self.dispatcher.feed_update(self.bot, update)
-        return self.session.requests[-1].text
+        return getattr(self.session.requests[-1], "text", None)
 
 
 @pytest.fixture
@@ -317,3 +323,76 @@ async def test_start_link_still_checks_the_line_when_the_bot_username_is_unavail
     texts = sent_texts(conversation)
     assert any(text.startswith("Following 59RH") and "t.me" not in text for text in texts)
     assert "No notices" in texts[-1]  # the immediate check still ran
+
+
+def labels(request):
+    return [button.text for row in request.reply_markup.inline_keyboard for button in row]
+
+
+async def test_departures_without_a_timetable_offer_24_hours_and_toggle_in_place(
+    store, conversation
+):
+    any_id = terminal_id("*")
+    await conversation.send(callback="follow:59RH")
+    await conversation.send(callback="dep:59RH")
+    prompt = conversation.session.requests[-1]
+    assert "Which departures" in prompt.text
+    assert [b for b in labels(prompt) if b[:2].isdigit()][0] == "00"
+    assert len([b for b in labels(prompt) if b[:2].isdigit()]) == 24
+    await conversation.send(callback=f"dephr:59RH:{any_id}:7")
+    assert (await store.subscriptions(42))[0]["departures"] == '{"*": [7]}'
+    edit = conversation.session.requests[-1]
+    assert edit.reply_markup and "✓ 07" in labels(edit)
+    await conversation.send(callback=f"dephr:59RH:{any_id}:7")
+    assert (await store.subscriptions(42))[0]["departures"] == "{}"
+    await conversation.send(callback=f"dephr:59RH:{any_id}:8")
+    await conversation.send(callback="depall:59RH")
+    assert (await store.subscriptions(42))[0]["departures"] == "{}"
+    lines = await conversation.send("/lines")
+    assert "Departures: all" in lines
+    await conversation.send(callback=f"dephr:59RH:{any_id}:9")
+    assert "Departures: Any direction 09" in await conversation.send("/lines")
+
+
+async def test_departures_use_the_timetable_per_direction(store, conversation):
+    conversation.timetable = (Path(__file__).parent / "fixtures" / "timetable_59rh.html").read_text(
+        encoding="utf-8"
+    )
+    hac = terminal_id("HACIOSMAN METRO")
+    await conversation.send(callback="follow:59RH")
+    await conversation.send(callback="dep:59RH")
+    directions = labels(conversation.session.requests[-1])
+    assert "RUMELİ HİSARÜSTÜ" in directions and "HACIOSMAN METRO" in directions
+    await conversation.send(callback=f"depdir:59RH:{hac}")
+    shown = labels(conversation.session.requests[-1])
+    assert "▸ HACIOSMAN METRO" in shown
+    assert "07 · 07:00 07:50" in shown and len([b for b in shown if b[:2].isdigit()]) == 7
+    await conversation.send(callback=f"dephr:59RH:{hac}:7")
+    assert (await store.subscriptions(42))[0]["departures"] == '{"HACIOSMAN METRO": [7]}'
+    assert "▸ HACIOSMAN METRO (1)" in labels(conversation.session.requests[-1])
+    assert "Departures: HACIOSMAN METRO 07" in await conversation.send("/lines")
+
+
+async def test_departure_buttons_ignore_unfollowed_lines(store, conversation):
+    await conversation.send(callback=f"dephr:59RH:{terminal_id('*')}:7")
+    assert await store.pool.fetchval("SELECT count(*) FROM subscriptions") == 0
+    assert "Add this line" in await conversation.send(callback="dep:59RH")
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        "depdir:59RH",
+        "depdir:59RH:zzzzzz",
+        "dephr:59RH:x",
+        "dephr:59RH:{id}:abc",
+        "dephr:59RH:{id}:24",
+        "dephr:59RH:{id}:-1",
+        "dephr:59RH:{id}:7:extra",
+        "depdir:59RH:999999:1",
+    ],
+)
+async def test_malformed_or_stale_departure_buttons_change_nothing(store, conversation, data):
+    await conversation.send(callback="follow:59RH")
+    await conversation.send(callback=data.format(id=terminal_id("*")))
+    assert (await store.subscriptions(42))[0]["departures"] in ("{}", {})

@@ -4,13 +4,18 @@ from importlib.resources import files
 
 import asyncpg
 
-from iett_bot.domain import Line, Snapshot, fingerprint
+from iett_bot.domain import Line, Snapshot, fingerprint, parse_departures, wants_notice
 from iett_bot.i18n import incident_messages, notice_messages
 from iett_bot.schedule import Schedule
 
 
 class SubscriptionLimit(ValueError):
     pass
+
+
+def _json(value):
+    """asyncpg returns JSONB as text unless a codec is registered."""
+    return json.loads(value) if isinstance(value, str) else value
 
 
 class Store:
@@ -133,6 +138,42 @@ class Store:
         )
         return bool(row)
 
+    async def set_departures(self, chat_id: int, code: str, picks: dict[str, list[int]]) -> bool:
+        """Store {"TERMINAL": [hours]} (empty = every departure); False if not subscribed."""
+        picks = {key: sorted(set(hours)) for key, hours in picks.items() if hours}
+        return bool(
+            await self.pool.fetchval(
+                "UPDATE subscriptions SET departures=$3::jsonb WHERE chat_id=$1 AND line_code=$2 "
+                "RETURNING TRUE",
+                chat_id,
+                code,
+                json.dumps(picks, ensure_ascii=False),
+            )
+        )
+
+    async def toggle_departure(
+        self, chat_id: int, code: str, key: str, hour: int
+    ) -> dict[str, list[int]] | None:
+        """Flip one hour for one direction under a row lock; None if not subscribed."""
+        async with self.pool.acquire() as conn, conn.transaction():
+            current = await conn.fetchval(
+                "SELECT departures FROM subscriptions WHERE chat_id=$1 AND line_code=$2 FOR UPDATE",
+                chat_id,
+                code,
+            )
+            if current is None:
+                return None
+            picks = _json(current)
+            picks[key] = sorted(set(picks.get(key, [])) ^ {hour})
+            picks = {name: hours for name, hours in picks.items() if hours}
+            await conn.execute(
+                "UPDATE subscriptions SET departures=$3::jsonb WHERE chat_id=$1 AND line_code=$2",
+                chat_id,
+                code,
+                json.dumps(picks, ensure_ascii=False),
+            )
+            return picks
+
     async def current_notices(self, code: str) -> list[dict]:
         return [
             dict(row)
@@ -206,13 +247,15 @@ class Store:
                         snapshot.checked_at,
                     )
                 else:
+                    departures = parse_departures(text)
                     await conn.execute(
                         "INSERT INTO notices(line_code,fingerprint,original_text,first_seen_at,"
-                        "last_seen_at) VALUES($1,$2,$3,$4,$4)",
+                        "last_seen_at,departures) VALUES($1,$2,$3,$4,$4,$5::jsonb)",
                         snapshot.line_code,
                         key,
                         text,
                         snapshot.checked_at,
+                        json.dumps(departures, ensure_ascii=False) if departures else None,
                     )
             for key, row in active.items():
                 if key not in seen:
@@ -273,7 +316,8 @@ class Store:
         added = 0
         # Only consider undelivered occurrences, rather than re-inserting every receipt.
         rows = await conn.fetch(
-            "SELECT s.chat_id,s.schedule,u.language,l.code,l.name,n.* FROM subscriptions s "
+            "SELECT s.chat_id,s.schedule,s.departures AS picks,u.language,l.code,l.name,n.* "
+            "FROM subscriptions s "
             "JOIN users u USING(chat_id) JOIN lines l ON l.code=s.line_code "
             "JOIN notices n ON n.line_code=l.code "
             "LEFT JOIN outbox q ON q.chat_id=s.chat_id AND q.notice_id=n.id "
@@ -285,6 +329,10 @@ class Store:
         )
         for row in rows:
             if not Schedule.from_json(row["schedule"]).is_open(now):
+                continue
+            # Skipped notices stay unqueued and are re-evaluated every tick, so changed picks
+            # apply at once; ponytail: re-scan per tick, index/mark skipped rows if rows get large.
+            if not wants_notice(_json(row["picks"]), _json(row["departures"])):
                 continue
             result = await conn.fetchval(
                 "INSERT INTO outbox(chat_id,line_code,event_key,kind,notice_id,messages,"

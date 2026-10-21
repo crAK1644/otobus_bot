@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import json
 import logging
 from datetime import timedelta
 
@@ -19,7 +21,7 @@ from aiogram.utils.payload import decode_payload, encode_payload
 
 from iett_bot.config import Settings
 from iett_bot.db import Store, SubscriptionLimit
-from iett_bot.domain import Line, normalize_code, utcnow
+from iett_bot.domain import Line, normalize_code, turkish_upper, utcnow
 from iett_bot.i18n import local_time, split_text, tr
 from iett_bot.iett import IettClient, SourceError
 from iett_bot.schedule import Schedule
@@ -45,6 +47,33 @@ def code_from_payload(payload: str) -> str:
 
 def telegram_language(person) -> str:
     return "en" if person and (person.language_code or "").startswith("en") else "tr"
+
+
+def terminal_id(name: str) -> str:
+    """Short stable id for a terminal, so buttons survive a reordered terminal list."""
+    return hashlib.sha1(name.encode(), usedforsecurity=False).hexdigest()[:6]
+
+
+def hour_label(hour: int, times: tuple[str, ...], lang: str) -> str:
+    """'07 · 07:10 07:50' for a few trips, '07 · 12 trips' for many, '07' without a timetable."""
+    own = [t for t in times if int(t[:2]) == hour]
+    if not own:
+        return f"{hour:02d}"
+    if len(own) > 3:
+        return f"{hour:02d} · " + tr(lang, "trips", count=len(own))
+    return f"{hour:02d} · " + " ".join(own)
+
+
+def describe_departures(lang: str, picks: dict[str, list[int]]) -> str:
+    if not picks:
+        return tr(lang, "departures_all")
+    parts = [
+        (tr(lang, "any_direction") if key == "*" else key)
+        + " "
+        + ", ".join(f"{hour:02d}" for hour in hours)
+        for key, hours in sorted(picks.items())
+    ]
+    return tr(lang, "departures_some", picks=" · ".join(parts))
 
 
 class UserContext(BaseMiddleware):
@@ -118,10 +147,16 @@ def build_router(
         for sub in subscriptions:
             code = sub["line_code"]
             text += f"\n\n{code} — {sub['name']}\n{Schedule.from_json(sub['schedule']).describe()}"
+            text += "\n" + describe_departures(lang, json.loads(sub["departures"]))
             rows.append(
                 [
                     (tr(lang, "check_line", code=code), f"check:{code}"),
                     (tr(lang, "hours", code=code), f"hours:{code}"),
+                ]
+            )
+            rows.append(
+                [
+                    (tr(lang, "departures", code=code), f"dep:{code}"),
                     (tr(lang, "remove", code=code), f"remove:{code}"),
                 ]
             )
@@ -372,6 +407,138 @@ def build_router(
         await callback.bot.send_message(
             user["chat_id"], tr(user["language"], "schedule_prompt", code=code)
         )
+
+    async def departure_state(user: dict, code: str):
+        """(terminals, times per terminal, current picks), or None if the line is not followed."""
+        for sub in await store.subscriptions(user["chat_id"]):
+            if sub["line_code"] == code:
+                break
+        else:
+            return None
+        timetable = await source.timetable(Line(code, sub["name"]))
+        terminals = list(timetable)
+        if not terminals:
+            ends = [turkish_upper(part.strip()) for part in sub["name"].split(" - ")]
+            terminals = ends if len(ends) == 2 and all(ends) else ["*"]
+        return terminals, timetable, json.loads(sub["departures"])
+
+    def departure_markup(lang, code, terminals, timetable, picks, selected):
+        """`selected` is a terminal name (or None)."""
+        rows = [
+            [
+                (
+                    ("▸ " if key == selected else "")
+                    + (tr(lang, "any_direction") if key == "*" else key)
+                    + (f" ({len(picks[key])})" if picks.get(key) else ""),
+                    f"depdir:{code}:{terminal_id(key)}",
+                )
+            ]
+            for key in terminals
+        ]
+        if selected is not None:
+            key = selected
+            times = timetable.get(key, ())
+            hours = sorted({int(t[:2]) for t in times}) or list(range(24))
+            chosen = picks.get(key, [])
+            buttons = [
+                (
+                    ("✓ " if hour in chosen else "") + hour_label(hour, times, lang),
+                    f"dephr:{code}:{terminal_id(key)}:{hour}",
+                )
+                for hour in hours
+            ]
+            rows += [buttons[i : i + 3] for i in range(0, len(buttons), 3)]
+        rows.append([(tr(lang, "all_departures"), f"depall:{code}")])
+        return keyboard(rows)
+
+    async def refresh_departures(callback, user, code, selected, picks=None):
+        state = await departure_state(user, code)
+        if state is None:
+            await callback.bot.send_message(user["chat_id"], tr(user["language"], "not_subscribed"))
+            return
+        terminals, timetable, stored = state
+        markup = departure_markup(
+            user["language"],
+            code,
+            terminals,
+            timetable,
+            stored if picks is None else picks,
+            selected,
+        )
+        try:
+            await callback.message.edit_reply_markup(reply_markup=markup)
+        except TelegramAPIError as exc:
+            if "not modified" not in str(exc):
+                await callback.bot.send_message(
+                    user["chat_id"],
+                    tr(user["language"], "departures_prompt", code=code),
+                    reply_markup=markup,
+                )
+
+    @router.callback_query(F.data.startswith("dep:"))
+    async def departures(callback: CallbackQuery, user: dict) -> None:
+        await callback.answer()
+        code = callback.data.split(":", 1)[1]
+        state = await departure_state(user, code)
+        if state is None:
+            await callback.bot.send_message(user["chat_id"], tr(user["language"], "not_subscribed"))
+            return
+        terminals, timetable, picks = state
+        await callback.bot.send_message(
+            user["chat_id"],
+            tr(user["language"], "departures_prompt", code=code),
+            reply_markup=departure_markup(
+                user["language"],
+                code,
+                terminals,
+                timetable,
+                picks,
+                terminals[0] if len(terminals) == 1 else None,
+            ),
+        )
+
+    def callback_fields(callback: CallbackQuery, count: int) -> list[str] | None:
+        fields = callback.data.split(":")
+        return fields[1:] if len(fields) == count + 1 else None
+
+    @router.callback_query(F.data.startswith("depdir:"))
+    async def departure_direction(callback: CallbackQuery, user: dict) -> None:
+        fields = callback_fields(callback, 2)
+        state = await departure_state(user, fields[0]) if fields else None
+        key = state and next((t for t in state[0] if terminal_id(t) == fields[1]), None)
+        if not key:
+            await callback.answer(tr(user["language"], "stale_buttons"))
+            return
+        await callback.answer()
+        await refresh_departures(callback, user, fields[0], key)
+
+    @router.callback_query(F.data.startswith("dephr:"))
+    async def departure_hour(callback: CallbackQuery, user: dict) -> None:
+        fields = callback_fields(callback, 3)
+        state = await departure_state(user, fields[0]) if fields else None
+        key = state and next((t for t in state[0] if terminal_id(t) == fields[1]), None)
+        if (
+            not key
+            or not (fields[2].isascii() and fields[2].isdigit())
+            or not 0 <= int(fields[2]) <= 23
+        ):
+            await callback.answer(tr(user["language"], "stale_buttons"))
+            return
+        picks = await store.toggle_departure(user["chat_id"], fields[0], key, int(fields[2]))
+        if picks is None:
+            await callback.answer(tr(user["language"], "not_subscribed"))
+            return
+        await callback.answer()
+        await refresh_departures(callback, user, fields[0], key, picks)
+
+    @router.callback_query(F.data.startswith("depall:"))
+    async def departure_reset(callback: CallbackQuery, user: dict) -> None:
+        code = callback.data.split(":", 1)[1]
+        if not await store.set_departures(user["chat_id"], code, {}):
+            await callback.answer(tr(user["language"], "not_subscribed"))
+            return
+        await callback.answer(tr(user["language"], "departures_all"))
+        await refresh_departures(callback, user, code, None, {})
 
     @router.callback_query(F.data.startswith("delete:"))
     async def delete(callback: CallbackQuery, user: dict, state: FSMContext) -> None:

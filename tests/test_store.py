@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, Mock
@@ -14,6 +15,7 @@ from iett_bot.schedule import Schedule
 pytestmark = pytest.mark.integration
 NOW = datetime(2026, 10, 21, 4, 45, tzinfo=UTC)
 LINE = Line("59RH", "RUMELİ HİSARÜSTÜ - HACIOSMAN METRO")
+DEPARTURE = "HACIOSMAN METRO kalkışlı 08:30 seferi yapılamayacaktır. (07:45)"
 NOTICE = "TEST VERİSİ: HACIOSMAN METRO kalkışlı 08:30 seferi iptal edilmiştir. (07:45)"
 
 
@@ -294,3 +296,65 @@ async def test_overdue_deliveries_follow_the_workers_closed_hours_reschedule(sto
         minutes=6
     )
     assert (await store.metrics(next_window))["overdue_deliveries"] == 1
+
+
+async def queued(store):
+    return await store.pool.fetchval("SELECT count(*) FROM outbox WHERE kind='notice'")
+
+
+async def test_departure_picks_skip_other_departures_until_the_picks_change(store):
+    await subscribe(store)
+    assert await store.set_departures(42, LINE.code, {"HACIOSMAN METRO": [7]})
+    await snapshot(store, (DEPARTURE,))  # names the 08:30 departure from HACIOSMAN METRO
+    assert await queued(store) == 0
+    assert [n["departures"] for n in await store.pool.fetch("SELECT departures FROM notices")]
+    await store.set_departures(42, LINE.code, {"HACIOSMAN METRO": [7, 8]})
+    await store.enqueue_due(NOW, timedelta(seconds=180))
+    assert await queued(store) == 1
+    # Already queued alerts stay queued even if the picks narrow again.
+    await store.set_departures(42, LINE.code, {"HACIOSMAN METRO": [7]})
+    await store.enqueue_due(NOW, timedelta(seconds=180))
+    assert await queued(store) == 1
+
+
+async def test_unclear_notices_and_other_directions_are_always_delivered(store):
+    await subscribe(store)
+    await store.set_departures(42, LINE.code, {"HACIOSMAN METRO": [7]})
+    await snapshot(
+        store,
+        (
+            "Hat güzergah değişikliği yapılmıştır.",  # no departure named
+            "RUMELİ HİSARÜSTÜ kalkışlı 09:15 seferi iptal.",  # a direction without picks
+            "HACIOSMAN METRO kalkışlı 07:50 seferi iptal.",  # a picked hour
+        ),
+    )
+    assert await queued(store) == 3
+    await store.set_departures(42, LINE.code, {"HACIOSMAN METRO": [6]})
+    assert await store.pool.fetchval("SELECT count(*) FROM outbox") == 3
+
+
+async def test_departure_picks_are_per_subscriber_and_cleaned(store):
+    await subscribe(store, 42)
+    await subscribe(store, 43)
+    assert await store.set_departures(42, LINE.code, {"HACIOSMAN METRO": [7], "OTHER": []})
+    assert (await store.subscriptions(42))[0]["departures"] in (
+        '{"HACIOSMAN METRO": [7]}',
+        {"HACIOSMAN METRO": [7]},
+    )  # empty direction lists are dropped
+    assert not await store.set_departures(99, LINE.code, {"X": [1]})  # not subscribed
+    await snapshot(store, (DEPARTURE,))
+    rows = await store.pool.fetch("SELECT chat_id FROM outbox WHERE kind='notice'")
+    assert [row["chat_id"] for row in rows] == [43]
+
+
+async def test_concurrent_departure_toggles_do_not_lose_hours(store):
+    await subscribe(store)
+    await asyncio.gather(
+        *(store.toggle_departure(42, LINE.code, "HACIOSMAN METRO", hour) for hour in range(6, 12))
+    )
+    picks = json.loads((await store.subscriptions(42))[0]["departures"])
+    assert picks == {"HACIOSMAN METRO": [6, 7, 8, 9, 10, 11]}
+    assert await store.toggle_departure(42, LINE.code, "HACIOSMAN METRO", 6) == {
+        "HACIOSMAN METRO": [7, 8, 9, 10, 11]
+    }
+    assert await store.toggle_departure(99, LINE.code, "X", 1) is None
