@@ -2,7 +2,7 @@
   "version": 1,
   "checks": {
     "bot": {
-      "since": 1794554463,
+      "since": null,
       "alerted": false
     },
     "backup": {
